@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from sidecar.__main__ import SidecarApp, main
+from sidecar.protocol import ErrorMessage
 
 
 # ---------------------------------------------------------------------------
@@ -234,3 +235,188 @@ class TestGlobalExceptionHandler:
 
             mock_logger.fatal.assert_called_once()
             mock_exit.assert_called_once_with(1)
+
+
+# ---------------------------------------------------------------------------
+# Config validation in _handle_config (T052)
+# ---------------------------------------------------------------------------
+
+
+def _make_valid_config(**overrides) -> "ConfigMessage":
+    """Create a valid ConfigMessage with sensible defaults."""
+    from sidecar.protocol import ConfigMessage
+
+    defaults = dict(
+        inputMode="pushToTalk",
+        whisperModel="base",
+        wakeWord="",
+        submitWords=["send it"],
+        cancelWords=["never mind"],
+        silenceTimeout=1500,
+        maxUtteranceDuration=30000,
+        micDevice="",
+    )
+    defaults.update(overrides)
+    return ConfigMessage(**defaults)
+
+
+def _make_invalid_config(**overrides) -> "ConfigMessage":
+    """Create an invalid ConfigMessage (bad whisper model)."""
+    from sidecar.protocol import ConfigMessage
+
+    defaults = dict(
+        inputMode="pushToTalk",
+        whisperModel="INVALID_MODEL",
+        wakeWord="",
+        submitWords=["send it"],
+        cancelWords=["never mind"],
+        silenceTimeout=1500,
+        maxUtteranceDuration=30000,
+        micDevice="",
+    )
+    defaults.update(overrides)
+    return ConfigMessage(**defaults)
+
+
+class TestConfigValidation:
+    """Verify that _handle_config validates config before using it."""
+
+    @pytest.mark.asyncio
+    async def test_invalid_config_sends_error_message(self, tmp_path):
+        """Invalid config should send ErrorMessage with CONFIG_INVALID code."""
+        sock = str(tmp_path / "test.sock")
+        app = SidecarApp(sock)
+        app._server.send = AsyncMock()
+
+        invalid_cfg = _make_invalid_config()
+        await app._handle_config(invalid_cfg)
+
+        # Should have sent an error message
+        app._server.send.assert_called_once()
+        sent_msg = app._server.send.call_args[0][0]
+        assert isinstance(sent_msg, ErrorMessage)
+        assert sent_msg.code == "CONFIG_INVALID"
+        assert "INVALID_MODEL" in sent_msg.message or "whisperModel" in sent_msg.message
+
+    @pytest.mark.asyncio
+    async def test_invalid_config_does_not_set_pipeline(self, tmp_path):
+        """Invalid config should NOT create a pipeline when no prior config exists."""
+        sock = str(tmp_path / "test.sock")
+        app = SidecarApp(sock)
+        app._server.send = AsyncMock()
+
+        assert app._pipeline is None
+        assert app._config is None
+
+        invalid_cfg = _make_invalid_config()
+        await app._handle_config(invalid_cfg)
+
+        # Pipeline and config should remain None
+        assert app._pipeline is None
+        assert app._config is None
+
+    @pytest.mark.asyncio
+    async def test_valid_config_creates_pipeline(self, tmp_path):
+        """Valid config should create a pipeline and store the config."""
+        sock = str(tmp_path / "test.sock")
+        app = SidecarApp(sock)
+        app._server.send = AsyncMock()
+
+        valid_cfg = _make_valid_config()
+        with patch("sidecar.__main__.Pipeline") as mock_pipeline_cls:
+            mock_pipeline_cls.return_value = MagicMock()
+            await app._handle_config(valid_cfg)
+
+        assert app._config is valid_cfg
+        assert app._pipeline is not None
+        mock_pipeline_cls.assert_called_once_with(valid_cfg)
+
+    @pytest.mark.asyncio
+    async def test_invalid_config_keeps_prior_valid_config(self, tmp_path):
+        """If a prior valid config exists, invalid config keeps it."""
+        sock = str(tmp_path / "test.sock")
+        app = SidecarApp(sock)
+        app._server.send = AsyncMock()
+
+        # First, set a valid config
+        valid_cfg = _make_valid_config()
+        with patch("sidecar.__main__.Pipeline") as mock_pipeline_cls:
+            mock_pipeline_cls.return_value = MagicMock()
+            await app._handle_config(valid_cfg)
+        assert app._config is valid_cfg
+        old_pipeline = app._pipeline
+
+        # Now send invalid config
+        app._server.send.reset_mock()
+        invalid_cfg = _make_invalid_config()
+        await app._handle_config(invalid_cfg)
+
+        # Should still have the old valid config and pipeline
+        assert app._config is valid_cfg
+        assert app._pipeline is old_pipeline
+
+        # Should have sent an error
+        app._server.send.assert_called_once()
+        sent_msg = app._server.send.call_args[0][0]
+        assert sent_msg.code == "CONFIG_INVALID"
+
+    @pytest.mark.asyncio
+    async def test_invalid_config_no_prior_refuses_start(self, tmp_path):
+        """With no prior valid config, start should be refused after invalid config."""
+        sock = str(tmp_path / "test.sock")
+        app = SidecarApp(sock)
+        app._server.send = AsyncMock()
+
+        # Send invalid config
+        invalid_cfg = _make_invalid_config()
+        await app._handle_config(invalid_cfg)
+        app._server.send.reset_mock()
+
+        # Try to start listening
+        from sidecar.protocol import ControlMessage
+
+        await app._handle_control(ControlMessage(action="start"))
+
+        # Should get a PROTOCOL_ERROR because config is still None
+        app._server.send.assert_called_once()
+        sent_msg = app._server.send.call_args[0][0]
+        assert isinstance(sent_msg, ErrorMessage)
+        assert sent_msg.code == "PROTOCOL_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_valid_config_no_error_sent(self, tmp_path):
+        """Valid config should NOT send any error message."""
+        sock = str(tmp_path / "test.sock")
+        app = SidecarApp(sock)
+        app._server.send = AsyncMock()
+
+        valid_cfg = _make_valid_config()
+        with patch("sidecar.__main__.Pipeline"):
+            await app._handle_config(valid_cfg)
+
+        # send should not have been called (no error to report)
+        app._server.send.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_multiple_validation_errors_listed(self, tmp_path):
+        """Multiple invalid fields should all be listed in the error message."""
+        sock = str(tmp_path / "test.sock")
+        app = SidecarApp(sock)
+        app._server.send = AsyncMock()
+
+        # Create config with multiple errors
+        bad_cfg = _make_invalid_config(
+            whisperModel="NOPE",
+            submitWords=[],
+            cancelWords=[],
+            silenceTimeout=-1,
+        )
+        await app._handle_config(bad_cfg)
+
+        sent_msg = app._server.send.call_args[0][0]
+        assert sent_msg.code == "CONFIG_INVALID"
+        # Message should mention multiple issues
+        assert "whisperModel" in sent_msg.message
+        assert "submitWords" in sent_msg.message
+        assert "cancelWords" in sent_msg.message
+        assert "silenceTimeout" in sent_msg.message

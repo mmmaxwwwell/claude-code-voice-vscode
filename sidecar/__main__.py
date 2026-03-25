@@ -17,6 +17,7 @@ import sys
 import traceback
 
 from sidecar.audio import AudioInputStream
+from sidecar.config_validator import validate_config
 from sidecar.errors import VoiceError
 from sidecar.logger import configure_logging
 from sidecar.pipeline import Pipeline, StatusEvent, TranscriptEvent
@@ -192,8 +193,27 @@ class SidecarApp:
         self._shutdown_event.set()
 
     async def _handle_config(self, msg: ConfigMessage) -> None:
-        """Handle a config message from the extension."""
+        """Handle a config message from the extension.
+
+        Validates the config before applying it. If validation fails, sends
+        an ErrorMessage with CONFIG_INVALID code. If a prior valid config
+        exists, keeps using it; otherwise the sidecar stays running but
+        refuses to start listening until a valid config arrives.
+        """
         logger.info("Config received: mode=%s, model=%s", msg.inputMode, msg.whisperModel)
+
+        errors = validate_config(msg)
+        if errors:
+            error_detail = "; ".join(errors)
+            logger.warning("Config validation failed: %s", error_detail)
+            await self._server.send(
+                ErrorMessage(
+                    code="CONFIG_INVALID",
+                    message=f"Invalid config: {error_detail}",
+                )
+            )
+            return
+
         self._config = msg
         # Rebuild pipeline with new config
         self._pipeline = Pipeline(self._config)
