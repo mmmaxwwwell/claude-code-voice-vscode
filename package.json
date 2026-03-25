@@ -1,0 +1,150 @@
+{
+  "name": "claude-voice",
+  "displayName": "Claude Voice",
+  "description": "Conversational voice mode for the Claude Code VS Code extension",
+  "version": "0.1.0",
+  "publisher": "anthropics",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:claude-voice.toggleListening",
+    "onCommand:claude-voice.downloadModel",
+    "onCommand:claude-voice.checkDependencies"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "claude-voice.toggleListening",
+        "title": "Claude Voice: Toggle Listening"
+      },
+      {
+        "command": "claude-voice.downloadModel",
+        "title": "Claude Voice: Download Model"
+      },
+      {
+        "command": "claude-voice.checkDependencies",
+        "title": "Claude Voice: Check Dependencies"
+      }
+    ],
+    "configuration": {
+      "title": "Claude Voice",
+      "properties": {
+        "claude-voice.inputMode": {
+          "type": "string",
+          "default": "wakeWord",
+          "enum": [
+            "wakeWord",
+            "pushToTalk",
+            "continuousDictation"
+          ],
+          "enumDescriptions": [
+            "Activate with wake word (\"hey claude\")",
+            "Hold a keybinding to speak",
+            "All speech is transcribed, command words delimit chunks"
+          ],
+          "description": "Active input mode"
+        },
+        "claude-voice.wakeWord": {
+          "type": "string",
+          "default": "hey_claude",
+          "description": "openWakeWord model name"
+        },
+        "claude-voice.submitWords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "send it",
+            "go",
+            "submit"
+          ],
+          "description": "Words that trigger transcript submission"
+        },
+        "claude-voice.cancelWords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "never mind",
+            "cancel"
+          ],
+          "description": "Words that discard current transcript"
+        },
+        "claude-voice.deliveryMode": {
+          "type": "string",
+          "default": "autoSubmit",
+          "enum": [
+            "autoSubmit",
+            "pasteAndReview"
+          ],
+          "enumDescriptions": [
+            "Automatically submit after typing",
+            "Type text and leave cursor in input for review"
+          ],
+          "description": "How transcriptions are delivered to Claude Code"
+        },
+        "claude-voice.whisperModel": {
+          "type": "string",
+          "default": "base",
+          "enum": [
+            "tiny",
+            "base",
+            "small",
+            "medium"
+          ],
+          "description": "Whisper model size for speech-to-text"
+        },
+        "claude-voice.pushToTalkKey": {
+          "type": "string",
+          "default": "ctrl+shift+space",
+          "description": "Keybinding for push-to-talk mode"
+        },
+        "claude-voice.silenceTimeout": {
+          "type": "number",
+          "default": 1500,
+          "minimum": 500,
+          "maximum": 10000,
+          "description": "Milliseconds of silence before ending an utterance"
+        },
+        "claude-voice.maxUtteranceDuration": {
+          "type": "number",
+          "default": 60000,
+          "minimum": 5000,
+          "maximum": 300000,
+          "description": "Maximum single utterance duration in milliseconds"
+        },
+        "claude-voice.micDevice": {
+          "type": "string",
+          "default": "",
+          "description": "Microphone device name (empty = system default)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "dev": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify --sourcemap",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "vitest run tests/unit/ts/",
+    "test:integration": "vitest run tests/integration/",
+    "lint": "eslint src/ tests/",
+    "lint:fix": "eslint src/ tests/ --fix",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist/ out/ coverage/ *.vsix",
+    "check": "npm run lint && npm run typecheck && npm run test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
