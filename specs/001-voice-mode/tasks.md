@@ -160,7 +160,7 @@
 
 - [x] T034 Implement `src/commands.ts`: "Check Dependencies" command — run `python -c "import faster_whisper; import openwakeword; ..."` to verify each dep. Report results as VS Code notification. Check Claude Code extension via `vscode.extensions.getExtension('anthropics.claude-code')`. On activation: check Claude Code, warn if missing. Unit tests: mock exec, verify notification content. `tests/unit/ts/commands.test.ts`. [FR-006, FR-092, SC-008]
 - [x] T035 Integration test: error handling. Start sidecar with no mic → verify `MIC_NOT_FOUND` error. Start with missing model → verify `MODEL_NOT_FOUND`. Verify extension surfaces errors as notifications. `tests/integration/sidecar-errors.test.ts`. [SC-008]
-- [ ] T036 Integration test: edge cases. Empty transcription (VAD triggers, whisper returns empty) → silently discarded. Max utterance duration exceeded → truncated. Rapid sequential transcriptions → queued, delivered in order. Settings change while listening → new config pushed to sidecar. Cancel word in wake word mode ("hey claude never mind") → discarded. `tests/integration/edge-cases.test.ts`. [SC-003, SC-007]
+- [x] T036 Integration test: edge cases. Empty transcription (VAD triggers, whisper returns empty) → silently discarded. Max utterance duration exceeded → truncated. Rapid sequential transcriptions → queued, delivered in order. Settings change while listening → new config pushed to sidecar. Cancel word in wake word mode ("hey claude never mind") → discarded. `tests/integration/edge-cases.test.ts`. [SC-003, SC-007]
 
 **Checkpoint**: All error paths tested. Edge cases covered. `npm run check` (lint + typecheck + all tests) passes.
 
