@@ -38,15 +38,15 @@ def validate_config(config: ConfigMessage) -> List[str]:
     if not config.cancelWords:
         errors.append("cancelWords must be a non-empty list")
 
-    if not isinstance(config.silenceTimeout, int) or config.silenceTimeout <= 0:
+    if not isinstance(config.silenceTimeout, int) or not (500 <= config.silenceTimeout <= 10000):
         errors.append(
-            f"silenceTimeout must be a positive integer, "
+            f"silenceTimeout must be an integer between 500 and 10000, "
             f"got {config.silenceTimeout!r}"
         )
 
-    if not isinstance(config.maxUtteranceDuration, int) or config.maxUtteranceDuration <= 0:
+    if not isinstance(config.maxUtteranceDuration, int) or not (5000 <= config.maxUtteranceDuration <= 300000):
         errors.append(
-            f"maxUtteranceDuration must be a positive integer, "
+            f"maxUtteranceDuration must be an integer between 5000 and 300000, "
             f"got {config.maxUtteranceDuration!r}"
         )
 

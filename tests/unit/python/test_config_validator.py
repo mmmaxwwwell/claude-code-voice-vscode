@@ -117,6 +117,28 @@ class TestSilenceTimeout:
         assert len(errors) == 1
         assert "silenceTimeout" in errors[0]
 
+    def test_below_minimum_silence_timeout(self):
+        cfg = _valid_config(inputMode="pushToTalk", silenceTimeout=499)
+        errors = validate_config(cfg)
+        assert len(errors) == 1
+        assert "silenceTimeout" in errors[0]
+
+    def test_above_maximum_silence_timeout(self):
+        cfg = _valid_config(inputMode="pushToTalk", silenceTimeout=10001)
+        errors = validate_config(cfg)
+        assert len(errors) == 1
+        assert "silenceTimeout" in errors[0]
+
+    def test_minimum_boundary_silence_timeout(self):
+        cfg = _valid_config(inputMode="pushToTalk", silenceTimeout=500)
+        errors = validate_config(cfg)
+        assert errors == []
+
+    def test_maximum_boundary_silence_timeout(self):
+        cfg = _valid_config(inputMode="pushToTalk", silenceTimeout=10000)
+        errors = validate_config(cfg)
+        assert errors == []
+
 
 class TestMaxUtteranceDuration:
     def test_zero_max_utterance_duration(self):
@@ -130,6 +152,28 @@ class TestMaxUtteranceDuration:
         errors = validate_config(cfg)
         assert len(errors) == 1
         assert "maxUtteranceDuration" in errors[0]
+
+    def test_below_minimum_max_utterance_duration(self):
+        cfg = _valid_config(inputMode="pushToTalk", maxUtteranceDuration=4999)
+        errors = validate_config(cfg)
+        assert len(errors) == 1
+        assert "maxUtteranceDuration" in errors[0]
+
+    def test_above_maximum_max_utterance_duration(self):
+        cfg = _valid_config(inputMode="pushToTalk", maxUtteranceDuration=300001)
+        errors = validate_config(cfg)
+        assert len(errors) == 1
+        assert "maxUtteranceDuration" in errors[0]
+
+    def test_minimum_boundary_max_utterance_duration(self):
+        cfg = _valid_config(inputMode="pushToTalk", maxUtteranceDuration=5000)
+        errors = validate_config(cfg)
+        assert errors == []
+
+    def test_maximum_boundary_max_utterance_duration(self):
+        cfg = _valid_config(inputMode="pushToTalk", maxUtteranceDuration=300000)
+        errors = validate_config(cfg)
+        assert errors == []
 
 
 class TestMultipleErrors:

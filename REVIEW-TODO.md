@@ -65,7 +65,15 @@ The implementation is well-aligned with the spec, constitution, and research dec
 
 **Decision needed**: Reverse the order (rename first, then cleanup)? Or accept the risk as negligible?
 
-### 8. `np.ndarray` type annotations with lazy numpy imports
+### 9. FR-130 partial: wake word model file existence not validated at config time
+
+**Context**: FR-130 says "wake word model file exists (in wake word mode)". The `config_validator.py` only checks that `wakeWord` is non-empty. Actual model file resolution happens inside openWakeWord during Pipeline construction, not during config validation.
+
+**Impact**: If the wake word model file is missing, the user gets a pipeline creation error instead of a clear `CONFIG_INVALID` error at config time. The `WAKE_MODEL_NOT_FOUND` error code from the protocol contract is never emitted.
+
+**Decision needed**: Should `config_validator.py` probe for the wake word model file? This is complicated because openWakeWord resolves model names to files via its own internal logic (built-in models vs custom .tflite files). A file existence check would need to replicate that logic.
+
+### 10. `np.ndarray` type annotations with lazy numpy imports
 
 **Context**: Several sidecar modules (`pipeline.py`, `vad.py`, `wakeword.py`, `audio.py`, `transcriber.py`) use `np.ndarray` in type hints while numpy is lazy-imported. This works at runtime due to `from __future__ import annotations` (PEP 563 deferred evaluation), but would break if someone adds runtime type checking (e.g., `beartype`).
 
@@ -80,6 +88,14 @@ The implementation is well-aligned with the spec, constitution, and research dec
 ### 1. Socket protocol contract missing error codes
 
 **Fixed**: Added `CONFIG_INVALID`, `PROTOCOL_ERROR`, and `CONNECTION_REJECTED` error codes to `specs/001-voice-mode/contracts/socket-protocol.md`. These were implemented in code but missing from the contract documentation.
+
+### 2. Config validator missing bounds checking for silenceTimeout and maxUtteranceDuration
+
+**Fixed**: Updated `sidecar/config_validator.py` to validate bounds per package.json configuration:
+- `silenceTimeout`: must be 500-10000 (was: any positive integer)
+- `maxUtteranceDuration`: must be 5000-300000 (was: any positive integer)
+
+Added 8 new boundary tests to `tests/unit/python/test_config_validator.py`. All 26 tests pass.
 
 ---
 
@@ -119,7 +135,7 @@ The implementation is well-aligned with the spec, constitution, and research dec
 | FR-111 | PASS | Global exception handler (sys.excepthook + asyncio) |
 | FR-120-122 | PASS | Shutdown registry, reverse order, timeout |
 | FR-123 | PASS | --check flag |
-| FR-130/131 | PASS | Config validation, CONFIG_INVALID error, last-known-good |
+| FR-130/131 | PARTIAL | Config validation passes except wake word file existence check (see item 9). Bounds now enforced for silenceTimeout/maxUtteranceDuration. |
 | FR-140-142 | PASS | CI pipeline with lint/test/security |
 | FR-143 | PASS | Gitleaks pre-commit hook |
 | FR-150-152 | PASS | Custom test reporters |
