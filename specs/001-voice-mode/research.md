@@ -52,7 +52,7 @@
 
 **Decision**: openWakeWord (Apache 2.0)
 
-**Rationale**: User requires fully FOSS stack. openWakeWord is Apache 2.0, runs on CPU with TFLite, supports custom wake word training via Google Colab notebook (synthetic speech, ~1 hour). Ships with 6 pre-trained models but not "hey claude" — we'll train a custom model.
+**Rationale**: User requires fully FOSS stack. openWakeWord is Apache 2.0, runs on CPU with ONNX Runtime (switched from TFLite due to numpy 2.x incompatibility), supports custom wake word training via Google Colab notebook (synthetic speech, ~1 hour). Ships with 6 pre-trained models but not "hey claude" — we train a custom ONNX model.
 
 **Alternatives rejected**:
 - Porcupine (Picovoice): Better DX for custom wake words, but commercial licensing with free tier limits. User's FOSS requirement is non-negotiable.

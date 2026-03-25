@@ -174,7 +174,7 @@
 - [x] T038 [P] Polish error messages: review all error paths across sidecar and extension. Ensure every error surfaced to user has an actionable message (what went wrong + how to fix). Test: missing Python, missing each pip dep, no mic, corrupt model, Claude Code not installed.
 - [x] T039 Package extension: `vsce package` → `.vsix`. Verify `.vscodeignore` excludes dev files. Test: install in clean VS Code, run "Check Dependencies".
 - [x] T040 Update `CLAUDE.md` with final development guide, architecture overview, test guide, troubleshooting. (Re-run after T037 to reflect ONNX model changes, updated flake.nix LD_LIBRARY_PATH, and any wakeword.py changes.)
-- [ ] REVIEW Code review: check all implementation against spec FRs, constitution principles, research.md decisions. Auto-fix issues found. Write `REVIEW-TODO.md` for anything requiring human judgment. (Re-run after T037+T040 to verify ONNX model integration is consistent across spec, code, and docs.)
+- [x] REVIEW Code review: check all implementation against spec FRs, constitution principles, research.md decisions. Auto-fix issues found. Write `REVIEW-TODO.md` for anything requiring human judgment. (Re-run after T037+T040 to verify ONNX model integration is consistent across spec, code, and docs.)
 
 **Checkpoint**: Extension packages cleanly. All tests pass. Manual smoke test: install, activate, speak a command, verify it reaches Claude Code.
 

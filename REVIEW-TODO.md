@@ -1,29 +1,29 @@
 # Code Review: Implementation vs Spec/Constitution/Research
 
-**Date**: 2026-03-25
+**Date**: 2026-03-25 (updated after T037+T038+T040 completion)
 **Reviewer**: Automated (REVIEW task)
-**Scope**: All implementation files against spec FRs, constitution principles, research.md decisions, and socket-protocol contract.
+**Scope**: All implementation files against spec FRs, constitution principles, research.md decisions, and socket-protocol contract. Post-T037 re-run verifying ONNX model integration consistency.
 
 ## Status: PASS with notes
 
-The implementation is well-aligned with the spec, constitution, and research decisions. No critical violations found. Items below require human judgment.
+The implementation is well-aligned with the spec, constitution, and research decisions. No critical violations found. T037 (ONNX wake word model) and T038 (error message polish) are now complete. Items below require human judgment.
 
 ---
 
 ## Items Requiring Human Judgment
 
-### 1. T037 (Hey Claude model) and T038 (Error message polish) are incomplete
+### 1. ~T037/T038 incomplete~ RESOLVED
 
-**Status**: T037 and T038 are still unchecked in tasks.md.
-- T037: Pre-trained "hey claude" openWakeWord model not yet created. FR-031 requires extension to ship with this model.
-- T038: Error message polish pass not yet done.
-- The `WAKE_MODEL_NOT_FOUND` error code exists in the protocol contract but has no implementation in code yet — blocked on T037.
-
-**Decision needed**: Are T037/T038 blockers for release, or can the extension ship using openWakeWord's built-in models (e.g., `hey_jarvis`) as a fallback?
+T037 and T038 are now complete:
+- `models/hey_claude.onnx` exists and is tracked in git (`.gitignore` has `!models/hey_claude.onnx` exception)
+- `sidecar/wakeword.py` uses `inference_framework="onnx"` consistently
+- All implementation code is free of TFLite references
+- Error messages follow the "what went wrong + how to fix" pattern (T038)
+- FR-031 is now satisfied
 
 ### 2. PTT keybinding is hardcoded despite `pushToTalkKey` setting
 
-**Context**: The `pushToTalkKey` setting exists in package.json configuration (default: `ctrl+shift+space`), but the actual keybinding in `package.json` `contributes.keybindings` is hardcoded to `ctrl+shift+space`. VS Code keybindings in the manifest cannot be dynamically changed at runtime — they are static.
+**Context**: The `pushToTalkKey` setting exists in package.json configuration (default: `ctrl+shift+space`), but the actual keybinding in `package.json` `contributes.keybindings` is hardcoded to `ctrl+shift+space`. VS Code keybindings in the manifest cannot be dynamically changed at runtime -- they are static.
 
 **Impact**: The `pushToTalkKey` setting has no effect. Users who want a different keybinding must use VS Code's keyboard shortcuts editor (`Preferences: Open Keyboard Shortcuts`).
 
@@ -65,15 +65,15 @@ The implementation is well-aligned with the spec, constitution, and research dec
 
 **Decision needed**: Reverse the order (rename first, then cleanup)? Or accept the risk as negligible?
 
-### 9. FR-130 partial: wake word model file existence not validated at config time
+### 8. FR-130 partial: wake word model file existence not validated at config time
 
 **Context**: FR-130 says "wake word model file exists (in wake word mode)". The `config_validator.py` only checks that `wakeWord` is non-empty. Actual model file resolution happens inside openWakeWord during Pipeline construction, not during config validation.
 
-**Impact**: If the wake word model file is missing, the user gets a pipeline creation error instead of a clear `CONFIG_INVALID` error at config time. The `WAKE_MODEL_NOT_FOUND` error code from the protocol contract is never emitted.
+**Impact**: If the wake word model file is missing, the user gets a pipeline creation error instead of a clear `CONFIG_INVALID` error at config time. The `WAKE_MODEL_NOT_FOUND` error code from the protocol contract is never emitted. Now that `models/hey_claude.onnx` ships bundled, this is less likely for the default model but could still occur for custom models.
 
 **Decision needed**: Should `config_validator.py` probe for the wake word model file? This is complicated because openWakeWord resolves model names to files via its own internal logic (built-in models vs custom .onnx files). A file existence check would need to replicate that logic.
 
-### 10. `np.ndarray` type annotations with lazy numpy imports
+### 9. `np.ndarray` type annotations with lazy numpy imports
 
 **Context**: Several sidecar modules (`pipeline.py`, `vad.py`, `wakeword.py`, `audio.py`, `transcriber.py`) use `np.ndarray` in type hints while numpy is lazy-imported. This works at runtime due to `from __future__ import annotations` (PEP 563 deferred evaluation), but would break if someone adds runtime type checking (e.g., `beartype`).
 
@@ -85,17 +85,39 @@ The implementation is well-aligned with the spec, constitution, and research dec
 
 ## Auto-Fixed Issues
 
-### 1. Socket protocol contract missing error codes
+### 1. Socket protocol contract missing error codes (previous run)
 
 **Fixed**: Added `CONFIG_INVALID`, `PROTOCOL_ERROR`, and `CONNECTION_REJECTED` error codes to `specs/001-voice-mode/contracts/socket-protocol.md`. These were implemented in code but missing from the contract documentation.
 
-### 2. Config validator missing bounds checking for silenceTimeout and maxUtteranceDuration
+### 2. Config validator missing bounds checking (previous run)
 
 **Fixed**: Updated `sidecar/config_validator.py` to validate bounds per package.json configuration:
 - `silenceTimeout`: must be 500-10000 (was: any positive integer)
 - `maxUtteranceDuration`: must be 5000-300000 (was: any positive integer)
 
 Added 8 new boundary tests to `tests/unit/python/test_config_validator.py`. All 26 tests pass.
+
+### 3. research.md stale TFLite reference (this run)
+
+**Fixed**: Updated `specs/001-voice-mode/research.md` openWakeWord rationale to reflect the switch from TFLite to ONNX Runtime (due to numpy 2.x incompatibility with `tflite_runtime`).
+
+---
+
+## ONNX Model Integration Consistency (post-T037 verification)
+
+| Artifact | ONNX-consistent? | Notes |
+|----------|-------------------|-------|
+| `sidecar/wakeword.py` | Yes | Uses `inference_framework="onnx"`, `.onnx` extension |
+| `models/hey_claude.onnx` | Yes | Valid ONNX model, tracked in git |
+| `.gitignore` | Yes | `!models/hey_claude.onnx` exception |
+| `package.json` | Yes | No TFLite references |
+| `CLAUDE.md` | Yes | Documents `models/hey_claude.onnx` path |
+| `specs/001-voice-mode/plan.md` | Yes | References `hey_claude.onnx` |
+| `specs/001-voice-mode/research.md` | Yes | Updated to reflect ONNX switch |
+| `specs/001-voice-mode/tasks.md` | N/A | T012 says "TFLite" but that's historical task text; T037 corrects it |
+| `specs/001-voice-mode/learnings.md` | N/A | Historical entries mention TFLite; T037 learning documents the switch |
+| `src/` (all TS files) | Yes | No TFLite references |
+| `sidecar/` (all PY files) | Yes | No TFLite references |
 
 ---
 
@@ -119,8 +141,8 @@ Added 8 new boundary tests to `tests/unit/python/test_config_validator.py`. All 
 | FR-016 | PASS | Error messages with code + description |
 | FR-020/021 | PASS | Two-stage VAD with ~300ms ring buffer |
 | FR-022 | PASS | 16kHz mono audio capture |
-| FR-030 | PASS | Wake word via openWakeWord |
-| FR-031 | BLOCKED | T037 — custom "hey claude" model not yet trained |
+| FR-030 | PASS | Wake word via openWakeWord (ONNX) |
+| FR-031 | PASS | `models/hey_claude.onnx` ships with extension |
 | FR-032 | PASS | Wake word configurable |
 | FR-033 | PASS | Wake word stripped via `strip_wakeword_audio()` |
 | FR-040/041 | PASS | faster-whisper with tiny/base/small/medium |
@@ -135,7 +157,7 @@ Added 8 new boundary tests to `tests/unit/python/test_config_validator.py`. All 
 | FR-111 | PASS | Global exception handler (sys.excepthook + asyncio) |
 | FR-120-122 | PASS | Shutdown registry, reverse order, timeout |
 | FR-123 | PASS | --check flag |
-| FR-130/131 | PARTIAL | Config validation passes except wake word file existence check (see item 9). Bounds now enforced for silenceTimeout/maxUtteranceDuration. |
+| FR-130/131 | PARTIAL | Config validation passes except wake word file existence check (see item 8). Bounds enforced for silenceTimeout/maxUtteranceDuration. |
 | FR-140-142 | PASS | CI pipeline with lint/test/security |
 | FR-143 | PASS | Gitleaks pre-commit hook |
 | FR-150-152 | PASS | Custom test reporters |
@@ -162,7 +184,7 @@ Added 8 new boundary tests to `tests/unit/python/test_config_validator.py`. All 
 | uv + pyproject.toml | PASS | |
 | Unix domain socket + NDJSON | PASS | |
 | Two-stage VAD | PASS | |
-| openWakeWord | PASS | |
+| openWakeWord (ONNX) | PASS | Switched from TFLite to ONNX due to numpy 2.x |
 | faster-whisper | PASS | |
 | Vitest + pytest | PASS | |
 | Socket path ($XDG_RUNTIME_DIR) | PASS | |
