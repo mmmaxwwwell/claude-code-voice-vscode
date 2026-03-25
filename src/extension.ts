@@ -8,6 +8,7 @@ import { ClaudeBridge, DeliveryMode } from "./claude-bridge.js";
 import { buildConfigMessage, createConfigWatcher } from "./config.js";
 import { createLogger } from "./logger.js";
 import { ModelManager } from "./model-manager.js";
+import { checkDependencies, checkClaudeCodeExtension } from "./commands.js";
 import type { StatusMessage, TranscriptMessage, ErrorMessage } from "./protocol.js";
 
 const logger = createLogger("extension");
@@ -133,15 +134,14 @@ export function activate(context: vscode.ExtensionContext): void {
     () => modelManager.downloadModelCommand()
   );
 
-  // Check dependencies command (stub -- full implementation in T034)
+  // Check dependencies command
   const checkDepsCmd = vscode.commands.registerCommand(
     "claude-voice.checkDependencies",
-    () => {
-      vscode.window.showInformationMessage(
-        "Claude Voice: Dependency check not yet implemented."
-      );
-    }
+    () => checkDependencies()
   );
+
+  // On activation: check if Claude Code extension is installed
+  checkClaudeCodeExtension();
 
   // Push-to-talk commands
   const pttStartCmd = vscode.commands.registerCommand(

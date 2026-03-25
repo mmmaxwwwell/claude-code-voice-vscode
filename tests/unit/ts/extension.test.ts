@@ -24,9 +24,14 @@ vi.mock("vscode", () => {
       registerCommand: (...args: unknown[]) => mockRegisterCommand(...args),
       executeCommand: (...args: unknown[]) => mockExecuteCommand(...args),
     },
+    extensions: {
+      getExtension: vi.fn(() => ({ id: "anthropics.claude-code" })),
+    },
     window: {
       createStatusBarItem: vi.fn(() => ({ ...mockStatusBarItem })),
       showErrorMessage: vi.fn(),
+      showWarningMessage: vi.fn(),
+      showInformationMessage: vi.fn(),
       createOutputChannel: vi.fn(() => ({
         appendLine: vi.fn(),
         dispose: vi.fn(),
