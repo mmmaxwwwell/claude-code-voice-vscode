@@ -78,7 +78,7 @@ Do NOT use `find /nix/store`, `nix eval`, or `ldconfig` to locate libraries — 
 
 1. **Extension** spawns the sidecar as a child process, connects via Unix domain socket at `$XDG_RUNTIME_DIR/claude-voice-<pid>.sock` (fallback `/tmp`).
 2. Communication is **NDJSON** (newline-delimited JSON): extension sends `config` and `control` messages, sidecar sends `status`, `transcript`, and `error` messages. Protocol contract: `specs/001-voice-mode/contracts/socket-protocol.md`.
-3. **Sidecar pipeline**: Microphone → WebRTC VAD (reject silence) → Silero VAD via ONNX (confirm speech) → openWakeWord (gate in wake-word mode) → faster-whisper STT → command word detection → transcript delivered to extension.
+3. **Sidecar pipeline**: Microphone → WebRTC VAD (reject silence) → Silero VAD via ONNX (confirm speech) → openWakeWord via ONNX (gate in wake-word mode) → faster-whisper STT → command word detection → transcript delivered to extension.
 4. **Extension bridge**: receives transcript → opens Claude Code sidebar → simulates typing → optionally auto-submits.
 
 ### Three input modes
@@ -191,6 +191,7 @@ All settings are under the `claude-voice.*` namespace in VS Code settings:
 
 | Path | Description |
 |------|-------------|
+| `models/hey_claude.onnx` | Bundled ONNX wake word model |
 | `~/.cache/claude-voice/models/` | Downloaded whisper models |
 | `$XDG_RUNTIME_DIR/claude-voice-<pid>.sock` | Sidecar Unix socket (fallback `/tmp`) |
 | `dist/extension.js` | Bundled extension output |
@@ -238,6 +239,8 @@ If the sidecar rejects a config (e.g., invalid model size, missing wake word fil
 | `AUDIO_DEVICE_ERROR` | Audio device error during capture |
 | `TRANSCRIPTION_FAILED` | Whisper transcription error |
 | `CONFIG_INVALID` | Invalid configuration values |
+| `PROTOCOL_ERROR` | Malformed or invalid protocol message |
+| `CONNECTION_REJECTED` | Connection rejected (e.g., max clients exceeded) |
 
 ### Exit codes
 
