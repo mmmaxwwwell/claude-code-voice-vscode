@@ -130,8 +130,8 @@
     }
   },
   "scripts": {
-    "dev": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
-    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify --sourcemap",
+    "dev": "node scripts/build.mjs --watch",
+    "build": "node scripts/build.mjs",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "vitest run tests/unit/ts/",
     "test:integration": "vitest run tests/integration/",
