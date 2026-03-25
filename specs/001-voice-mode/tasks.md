@@ -89,6 +89,7 @@
 - [x] T019 Implement `src/socket-client.ts`: connect to Unix domain socket via `net.createConnection`. NDJSON line-buffered reader (handle partial lines). Send typed messages, receive via EventEmitter (`on('status', ...)`, `on('transcript', ...)`, `on('error', ...)`). Auto-reconnect on disconnect with backoff (for sidecar restart). Unit tests: mock socket, verify message framing and event emission. `tests/unit/ts/socket-client.test.ts`. [FR-010]
 - [x] T020 [P] Implement `src/config.ts`: read VS Code workspace settings → build ConfigMessage. Listen for `vscode.workspace.onDidChangeConfiguration` → push updated config to sidecar via socket. Unit tests: settings object → correct ConfigMessage fields. `tests/unit/ts/config.test.ts`. [FR-012]
 - [x] T049 [P] Implement `src/logger.ts`: structured logger wrapping VS Code OutputChannel "Claude Voice". Entries include timestamp, level, module, message, correlationId. Log level filtering from `claude-voice.logLevel` setting. Unit tests: verify formatted output, level filtering, correlation ID inclusion. `tests/unit/ts/logger.test.ts`. [FR-102]
+- [x] phase4-extension-protocol-s-fix5 Fix phase validation failure: read specs/001-voice-mode/validate/phase4-extension-protocol-s/ for failure history
 
 **Checkpoint**: `npm run test:unit` — protocol and socket client tests pass.
 
@@ -108,6 +109,7 @@
 - [x] T026 Integration test: sidecar lifecycle. Spawn real sidecar, verify socket connection. Kill sidecar, verify auto-restart. Kill 3× in <60s, verify circuit breaker stops. `tests/integration/sidecar-lifecycle.test.ts`. [SC-004]
 
 - [x] phase5-user-story-1-4-wake--fix1 Fix phase validation failure: read specs/001-voice-mode/validate/phase5-user-story-1-4-wake-/ for failure history
+- [ ] phase5-user-story-1-4-wake--fix2 Fix phase validation failure: read specs/001-voice-mode/validate/phase5-user-story-1-4-wake-/ for failure history
 
 **Checkpoint**: Wake word activation works end-to-end. Status bar reflects state correctly. Sidecar auto-restarts. `npm run test:unit && npm run test:integration` pass.
 

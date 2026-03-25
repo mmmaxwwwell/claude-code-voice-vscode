@@ -39,8 +39,12 @@ function createMockProcess(): ChildProcess & EventEmitter {
   (proc as Record<string, unknown>).pid = 12345;
   (proc as Record<string, unknown>).killed = false;
   (proc as Record<string, unknown>).stdin = null;
-  (proc as Record<string, unknown>).stdout = new EventEmitter();
-  (proc as Record<string, unknown>).stderr = new EventEmitter();
+  const mockStdout = new EventEmitter();
+  (mockStdout as Record<string, unknown>).resume = vi.fn();
+  (proc as Record<string, unknown>).stdout = mockStdout;
+  const mockStderr = new EventEmitter();
+  (mockStderr as Record<string, unknown>).resume = vi.fn();
+  (proc as Record<string, unknown>).stderr = mockStderr;
   (proc as Record<string, unknown>).kill = vi.fn(() => {
     (proc as Record<string, unknown>).killed = true;
     proc.emit("close", 0, null);

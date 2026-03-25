@@ -50,8 +50,8 @@ vi.mock("node:child_process", () => ({
     proc.kill = vi.fn(() => {
       proc.killed = true;
     });
-    proc.stdout = new EventEmitter();
-    proc.stderr = new EventEmitter();
+    proc.stdout = Object.assign(new EventEmitter(), { resume: vi.fn() });
+    proc.stderr = Object.assign(new EventEmitter(), { resume: vi.fn() });
     proc.pid = 12345;
     return proc;
   }),
