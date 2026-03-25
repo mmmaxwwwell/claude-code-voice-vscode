@@ -40,7 +40,8 @@ export class StatusBarController {
 
   constructor() {
     this._statusBarItem = vscode.window.createStatusBarItem(
-      vscode.StatusBarAlignment.Left
+      vscode.StatusBarAlignment.Right,
+      100
     );
     this._statusBarItem.command = "claude-voice.toggleListening";
     this._applyState();

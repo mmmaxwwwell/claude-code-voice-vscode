@@ -182,7 +182,7 @@
     "clean": "rm -rf dist/ out/ coverage/ *.vsix",
     "clean:all": "rm -rf node_modules/ .venv/ dist/ out/ coverage/ test-logs/ .pytest_cache/ .mypy_cache/ .ruff_cache/ *.vsix ~/.cache/claude-voice/models/",
     "check": "npm run lint && npm run typecheck && npm run test",
-    "package": "npx @vscode/vsce package",
+    "package": "npm run build && npx @vscode/vsce package",
     "install-local": "npm run package && code --install-extension claude-voice-$(node -p \"require('./package.json').version\").vsix",
     "uninstall-local": "code --uninstall-extension anthropics.claude-voice"
   },

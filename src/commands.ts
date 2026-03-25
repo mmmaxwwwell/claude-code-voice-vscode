@@ -39,7 +39,7 @@ function checkPythonDep(importName: string, pipName: string): Promise<{ pipName:
  * Returns true if installed, false otherwise.
  */
 export function checkClaudeCodeExtension(): boolean {
-  const ext = vscode.extensions.getExtension("anthropics.claude-code");
+  const ext = vscode.extensions.getExtension("anthropic.claude-code");
   if (!ext) {
     vscode.window.showWarningMessage(
       "Claude Voice: Claude Code extension is not installed. Search for 'Claude Code' in the Extensions view (Ctrl+Shift+X) to install it."

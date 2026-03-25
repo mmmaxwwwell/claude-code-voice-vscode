@@ -54,7 +54,8 @@ export class ModelManager {
       const listResp = await fetch(apiUrl);
       if (!listResp.ok) {
         throw new Error(
-          `Failed to fetch model info from Hugging Face: ${listResp.status} ${listResp.statusText}`
+          `Failed to fetch model info from Hugging Face (HTTP ${listResp.status} ${listResp.statusText}). ` +
+          `Check your internet connection and try again`
         );
       }
 
@@ -64,19 +65,23 @@ export class ModelManager {
         : modelInfo.siblings ?? [];
 
       if (files.length === 0) {
-        throw new Error("No files found in model repository");
+        throw new Error(
+          `No files found in the '${size}' model repository on Hugging Face. ` +
+          `The model may not exist or may have been removed`
+        );
       }
-
-      const totalSize = files.reduce((sum, f) => sum + f.size, 0);
-      let downloadedSize = 0;
 
       // Create temp download directory
       await fs.mkdir(tempDir, { recursive: true } as never);
 
-      progress.report({ message: `Downloading ${size} model...`, increment: 0 });
+      const fileCount = files.length;
+      const perFileIncrement = 100 / fileCount;
+
+      progress.report({ message: `Downloading ${size} model... 0/${fileCount} files`, increment: 0 });
 
       // Download each file
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         if (token.isCancellationRequested) {
           throw new Error("Download cancelled");
         }
@@ -85,7 +90,8 @@ export class ModelManager {
         const fileResp = await fetch(fileUrl);
         if (!fileResp.ok) {
           throw new Error(
-            `Failed to download ${file.rfilename}: ${fileResp.status} ${fileResp.statusText}`
+            `Failed to download ${file.rfilename} (HTTP ${fileResp.status} ${fileResp.statusText}). ` +
+            `Check your internet connection and try again`
           );
         }
 
@@ -95,7 +101,7 @@ export class ModelManager {
           await fs.mkdir(fileDir, { recursive: true } as never);
         }
 
-        // Stream download with progress
+        // Stream download
         const reader = fileResp.body?.getReader();
         if (!reader) {
           throw new Error(`No response body for ${file.rfilename}`);
@@ -113,13 +119,6 @@ export class ModelManager {
             if (done) break;
 
             chunks.push(value);
-            downloadedSize += value.byteLength;
-
-            const percent = Math.round((downloadedSize / totalSize) * 100);
-            progress.report({
-              message: `Downloading ${size} model... ${percent}%`,
-              increment: (value.byteLength / totalSize) * 100,
-            });
           }
         } catch (err) {
           await reader.cancel();
@@ -129,6 +128,11 @@ export class ModelManager {
         // Write file
         const fullData = Buffer.concat(chunks);
         await fs.writeFile(filePath, fullData);
+
+        progress.report({
+          message: `Downloading ${size} model... ${i + 1}/${fileCount} files`,
+          increment: perFileIncrement,
+        });
       }
 
       // Move temp dir to final location (atomic-ish)
@@ -183,8 +187,11 @@ export class ModelManager {
         } catch (err) {
           const message =
             err instanceof Error ? err.message : String(err);
+          const hint = message.includes("cancelled")
+            ? ""
+            : " Check your internet connection and try again.";
           vscode.window.showErrorMessage(
-            `Claude Voice: Failed to download model "${size}": ${message}`
+            `Claude Voice: Failed to download model "${size}": ${message}.${hint}`
           );
         }
       }
