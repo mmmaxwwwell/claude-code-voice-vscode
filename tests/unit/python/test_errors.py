@@ -4,6 +4,7 @@ import pytest
 
 from sidecar.errors import (
     AudioError,
+    ConfigError,
     DependencyError,
     TranscriptionError,
     VoiceError,
@@ -85,3 +86,51 @@ class TestErrorCatchability:
     def test_catch_dependency_error_as_voice_error(self):
         with pytest.raises(VoiceError):
             raise DependencyError(code="DEPENDENCY_MISSING", message="Missing")
+
+    def test_catch_config_error_as_voice_error(self):
+        with pytest.raises(VoiceError):
+            raise ConfigError(code="CONFIG_INVALID", message="bad config")
+
+
+class TestExitCodes:
+    def test_voice_error_default_exit_code(self):
+        err = VoiceError(code="UNKNOWN", message="unknown")
+        assert err.exit_code == 1
+
+    def test_audio_error_exit_code(self):
+        err = AudioError(code="MIC_NOT_FOUND", message="no mic")
+        assert err.exit_code == 2
+
+    def test_transcription_error_exit_code(self):
+        err = TranscriptionError(code="MODEL_NOT_FOUND", message="missing")
+        assert err.exit_code == 3
+
+    def test_dependency_error_exit_code(self):
+        err = DependencyError(code="DEPENDENCY_MISSING", message="missing dep")
+        assert err.exit_code == 4
+
+    def test_config_error_exit_code(self):
+        err = ConfigError(code="CONFIG_INVALID", message="bad config")
+        assert err.exit_code == 5
+
+    def test_exit_code_is_class_attribute(self):
+        assert VoiceError.exit_code == 1
+        assert AudioError.exit_code == 2
+        assert TranscriptionError.exit_code == 3
+        assert DependencyError.exit_code == 4
+        assert ConfigError.exit_code == 5
+
+
+class TestConfigError:
+    def test_is_voice_error(self):
+        err = ConfigError(code="CONFIG_INVALID", message="invalid config")
+        assert isinstance(err, VoiceError)
+
+    def test_config_invalid_code(self):
+        err = ConfigError(code="CONFIG_INVALID", message="bad")
+        assert err.code == "CONFIG_INVALID"
+
+    def test_str_includes_code_and_message(self):
+        err = ConfigError(code="CONFIG_INVALID", message="missing field")
+        assert "CONFIG_INVALID" in str(err)
+        assert "missing field" in str(err)
