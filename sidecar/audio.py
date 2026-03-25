@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import queue
 from typing import Generator
 
 import numpy as np
 
 from sidecar.errors import AudioError
+
+logger = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
 CHANNELS = 1
@@ -71,6 +74,7 @@ class AudioInputStream:
 
     def _frames_from_file(self) -> Generator[np.ndarray, None, None]:
         """Yield frames from the file source array."""
+        logger.debug("Streaming audio from file source (%d samples)", len(self._file_source))
         data = self._file_source
         assert data is not None
         offset = 0
@@ -89,6 +93,8 @@ class AudioInputStream:
         """Yield frames from the microphone."""
         sd = _import_sounddevice()
         self._running = True
+        logger.info("Opening microphone: device=%s, rate=%d, frame=%d samples",
+                     self.device, self.sample_rate, self.frame_samples)
         try:
             with sd.InputStream(
                 samplerate=self.sample_rate,

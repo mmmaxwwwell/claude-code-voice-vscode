@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from collections import deque
 from dataclasses import dataclass
 
 import numpy as np
 
 from sidecar.audio import FRAME_SAMPLES, SAMPLE_RATE, FRAME_DURATION_MS
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SILENCE_TIMEOUT_MS = 1500
 RING_BUFFER_FRAMES = 10  # ~300ms at 30ms per frame
@@ -116,6 +119,9 @@ class VoiceActivityDetector:
         # Stage 2: Silero VAD via ONNX
         self._silero = _silero_fn or _load_silero_model()
 
+        logger.info("VAD initialized: silence_timeout=%dms, ring_buffer=%d frames",
+                    silence_timeout_ms, ring_buffer_frames)
+
         # State
         self._ring_buffer: deque[np.ndarray] = deque(maxlen=ring_buffer_frames)
         self._in_speech = False
@@ -150,6 +156,8 @@ class VoiceActivityDetector:
                 self._silence_frame_count += 1
                 self._speech_frames.append(frame.copy())
                 if self._silence_frame_count >= self._silence_frames_for_timeout:
+                    logger.debug("VAD: speech ended after silence timeout (%d frames)",
+                                len(self._speech_frames))
                     events.append(SpeechEnd(audio=self._speech_frames))
                     self._in_speech = False
                     self._speech_frames = []
@@ -167,6 +175,8 @@ class VoiceActivityDetector:
                 self._silence_frame_count += 1
                 self._speech_frames.append(frame.copy())
                 if self._silence_frame_count >= self._silence_frames_for_timeout:
+                    logger.debug("VAD: speech ended after silence timeout (%d frames)",
+                                len(self._speech_frames))
                     events.append(SpeechEnd(audio=self._speech_frames))
                     self._in_speech = False
                     self._speech_frames = []
@@ -182,6 +192,7 @@ class VoiceActivityDetector:
             self._in_speech = True
             buffered = list(self._ring_buffer)
             self._speech_frames = buffered + [frame.copy()]
+            logger.debug("VAD: speech started (buffered %d pre-speech frames)", len(buffered))
             events.append(SpeechStart(buffered_audio=buffered))
         else:
             self._speech_frames.append(frame.copy())

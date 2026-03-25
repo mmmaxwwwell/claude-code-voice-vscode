@@ -16,6 +16,8 @@ import signal
 import sys
 import traceback
 
+import numpy as np
+
 from sidecar.audio import AudioInputStream
 from sidecar.config_validator import validate_config
 from sidecar.errors import VoiceError
@@ -32,6 +34,21 @@ from sidecar.server import SocketServer
 from sidecar.shutdown import ShutdownRegistry
 
 logger = logging.getLogger("sidecar")
+
+
+def _load_wav_file(path: str) -> np.ndarray:
+    """Load a 16kHz mono WAV file as int16 numpy array."""
+    import wave
+
+    with wave.open(path, "rb") as wf:
+        if wf.getframerate() != 16000:
+            raise ValueError(f"Expected 16kHz WAV, got {wf.getframerate()}Hz")
+        if wf.getnchannels() != 1:
+            raise ValueError(f"Expected mono WAV, got {wf.getnchannels()} channels")
+        if wf.getsampwidth() != 2:
+            raise ValueError(f"Expected 16-bit WAV, got {wf.getsampwidth() * 8}-bit")
+        raw = wf.readframes(wf.getnframes())
+    return np.frombuffer(raw, dtype=np.int16)
 
 
 def _unhandled_exception_handler(
@@ -120,8 +137,9 @@ def _run_check() -> int:
 class SidecarApp:
     """Main application: ties socket server, pipeline, and audio together."""
 
-    def __init__(self, socket_path: str) -> None:
+    def __init__(self, socket_path: str, *, audio_file: str | None = None) -> None:
         self._socket_path = socket_path
+        self._audio_file = audio_file
         self._server = SocketServer(socket_path)
         self._pipeline: Pipeline | None = None
         self._config: ConfigMessage | None = None
@@ -260,7 +278,13 @@ class SidecarApp:
         if self._pipeline is None:
             self._pipeline = Pipeline(self._config)
 
-        self._audio = AudioInputStream(device=self._config.micDevice or None)
+        file_source = None
+        if self._audio_file:
+            file_source = _load_wav_file(self._audio_file)
+        self._audio = AudioInputStream(
+            device=self._config.micDevice or None,
+            file_source=file_source,
+        )
 
         # Register dynamic cleanup hooks for active listening components
         self._shutdown_registry.register_hook(
@@ -354,6 +378,11 @@ def main() -> None:
         action="store_true",
         help="Check dependencies and audio device, then exit",
     )
+    parser.add_argument(
+        "--audio-file",
+        default=None,
+        help="Path to a 16kHz mono WAV file to use instead of microphone input (for testing)",
+    )
     args = parser.parse_args()
 
     # Configure structured JSON logging
@@ -366,7 +395,7 @@ def main() -> None:
         exit_code = _run_check()
         sys.exit(exit_code)
 
-    app = SidecarApp(args.socket)
+    app = SidecarApp(args.socket, audio_file=args.audio_file)
     asyncio.run(app.run())
 
 

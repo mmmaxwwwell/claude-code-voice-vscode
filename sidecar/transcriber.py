@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import numpy as np
 
 from sidecar.errors import DependencyError, TranscriptionError
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL_SIZE = "base"
 MODELS_DIR = Path.home() / ".cache" / "claude-voice" / "models"
@@ -59,6 +62,7 @@ class Transcriber:
                 model_size,
                 download_root=self.models_dir,
             )
+            logger.info("Whisper model loaded: size=%s, dir=%s", model_size, self.models_dir)
         except Exception as exc:
             raise TranscriptionError(
                 "MODEL_LOAD_FAILED",

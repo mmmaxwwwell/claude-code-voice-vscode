@@ -1,8 +1,5 @@
 """Tests for sidecar.config_validator — config message validation."""
 
-import os
-import tempfile
-
 import pytest
 
 from sidecar.config_validator import validate_config
@@ -26,10 +23,8 @@ def _valid_config(**overrides) -> ConfigMessage:
 
 
 class TestValidConfigPasses:
-    def test_valid_wake_word_config(self, tmp_path):
-        model_file = tmp_path / "hey_claude.tflite"
-        model_file.touch()
-        cfg = _valid_config(wakeWord=str(model_file))
+    def test_valid_wake_word_config(self):
+        cfg = _valid_config(wakeWord="hey_claude")
         errors = validate_config(cfg)
         assert errors == []
 
@@ -72,29 +67,25 @@ class TestInvalidInputMode:
         assert any("inputMode" in e for e in errors)
 
 
-class TestWakeWordFileValidation:
-    def test_wake_word_file_missing_in_wake_word_mode(self):
-        cfg = _valid_config(
-            inputMode="wakeWord",
-            wakeWord="/nonexistent/path/model.tflite",
-        )
+class TestWakeWordValidation:
+    def test_empty_wake_word_in_wake_word_mode(self):
+        cfg = _valid_config(inputMode="wakeWord", wakeWord="")
         errors = validate_config(cfg)
         assert len(errors) == 1
         assert "wakeWord" in errors[0]
 
-    def test_wake_word_file_not_checked_in_push_to_talk(self):
-        cfg = _valid_config(
-            inputMode="pushToTalk",
-            wakeWord="/nonexistent/path/model.tflite",
-        )
+    def test_model_name_accepted_in_wake_word_mode(self):
+        cfg = _valid_config(inputMode="wakeWord", wakeWord="hey_claude")
         errors = validate_config(cfg)
         assert errors == []
 
-    def test_wake_word_file_not_checked_in_continuous(self):
-        cfg = _valid_config(
-            inputMode="continuousDictation",
-            wakeWord="/nonexistent/path/model.tflite",
-        )
+    def test_wake_word_not_checked_in_push_to_talk(self):
+        cfg = _valid_config(inputMode="pushToTalk", wakeWord="")
+        errors = validate_config(cfg)
+        assert errors == []
+
+    def test_wake_word_not_checked_in_continuous(self):
+        cfg = _valid_config(inputMode="continuousDictation", wakeWord="")
         errors = validate_config(cfg)
         assert errors == []
 

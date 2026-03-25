@@ -9,6 +9,8 @@ Three modes:
 from __future__ import annotations
 
 import logging
+import time
+import uuid
 from dataclasses import dataclass
 from typing import Union
 
@@ -16,7 +18,9 @@ import numpy as np
 
 from sidecar.audio import FRAME_DURATION_MS, FRAME_SAMPLES
 from sidecar.command_words import Action, detect_command
+from sidecar.logger import _correlation_id, with_correlation_id
 from sidecar.protocol import ConfigMessage
+from sidecar.transcriber import Transcriber
 from sidecar.vad import SpeechEnd, SpeechStart, VoiceActivityDetector
 from sidecar.wakeword import WakeWordDetector
 
@@ -61,7 +65,9 @@ class Pipeline:
         self._vad = _vad or VoiceActivityDetector(
             silence_timeout_ms=config.silenceTimeout,
         )
-        self._transcriber = _transcriber
+        self._transcriber = _transcriber or Transcriber(
+            model_size=config.whisperModel,
+        )
         self._wakeword = _wakeword or WakeWordDetector(
             model_name=config.wakeWord,
         )
@@ -79,6 +85,20 @@ class Pipeline:
 
         # Continuous dictation accumulation buffer
         self._accumulated_text: list[str] = []
+
+        # Correlation ID token for structured logging across an utterance
+        self._corr_token: object | None = None
+
+    def _start_correlation(self) -> None:
+        """Assign a new correlation ID for the current utterance."""
+        cid = uuid.uuid4().hex[:12]
+        self._corr_token = _correlation_id.set(cid)
+
+    def _end_correlation(self) -> None:
+        """Clear the current utterance correlation ID."""
+        if self._corr_token is not None:
+            _correlation_id.reset(self._corr_token)
+            self._corr_token = None
 
     def process_frame(self, frame: np.ndarray) -> list[PipelineEvent]:
         """Process a single 30ms audio frame through the pipeline.
@@ -101,6 +121,8 @@ class Pipeline:
                 self._speech_frames = list(vad_event.buffered_audio)
                 self._speech_frame_count = len(self._speech_frames)
                 self._wake_word_detected = False
+                self._start_correlation()
+                logger.info("Speech started")
                 events.append(StatusEvent(state="speech_start"))
 
             elif isinstance(vad_event, SpeechEnd):
@@ -108,8 +130,10 @@ class Pipeline:
                 speech_ended_by_vad = True
                 # Use the VAD's accumulated audio (includes all speech frames)
                 self._speech_frames = vad_event.audio
+                logger.info("Speech ended via VAD silence timeout")
                 events.append(StatusEvent(state="speech_end"))
                 events.extend(self._process_speech_end())
+                self._end_correlation()
 
         # During speech (if VAD didn't just end it), accumulate and check
         if self._in_speech and not speech_ended_by_vad:
@@ -126,8 +150,10 @@ class Pipeline:
             # Check max utterance duration
             if self._speech_frame_count >= self._max_frames:
                 self._in_speech = False
+                logger.info("Max utterance duration reached, forcing speech end")
                 events.append(StatusEvent(state="speech_end"))
                 events.extend(self._process_speech_end())
+                self._end_correlation()
 
         return events
 
@@ -144,6 +170,7 @@ class Pipeline:
             if isinstance(vad_event, SpeechStart):
                 self._in_speech = True
                 self._speech_frames = list(vad_event.buffered_audio)
+                logger.info("PTT: speech detected by VAD")
                 events.append(StatusEvent(state="speech_start"))
             elif isinstance(vad_event, SpeechEnd):
                 self._speech_frames = vad_event.audio
@@ -161,28 +188,36 @@ class Pipeline:
         self._speech_frames = []
         self._in_speech = False
         self._vad.reset()
+        self._start_correlation()
+        logger.info("Push-to-talk started")
         return [StatusEvent(state="speech_start")]
 
     def ptt_stop(self) -> list[PipelineEvent]:
         """Called when push-to-talk key is released."""
         self._ptt_active = False
         events: list[PipelineEvent] = []
+        logger.info("Push-to-talk stopped")
         events.append(StatusEvent(state="speech_end"))
 
         # Use VAD-captured speech frames if available, otherwise use raw PTT audio
         audio_frames = self._speech_frames if self._speech_frames else self._ptt_audio
         if not audio_frames:
             self._in_speech = False
+            self._end_correlation()
             return events
 
         events.append(StatusEvent(state="processing"))
 
         audio = np.concatenate(audio_frames)
+        t0 = time.monotonic()
         transcript_text = self._transcriber.transcribe(audio)
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        logger.info("Transcription completed in %.1fms: %r", elapsed_ms, transcript_text)
 
         if not transcript_text.strip():
             events.append(StatusEvent(state="listening"))
             self._in_speech = False
+            self._end_correlation()
             return events
 
         cleaned, action = detect_command(
@@ -190,6 +225,7 @@ class Pipeline:
             submit_words=self._config.submitWords,
             cancel_words=self._config.cancelWords,
         )
+        logger.info("Command word detection: action=%s", action.value)
 
         if action == Action.CANCEL:
             events.append(TranscriptEvent(text="", action="cancel"))
@@ -201,6 +237,7 @@ class Pipeline:
 
         events.append(StatusEvent(state="listening"))
         self._in_speech = False
+        self._end_correlation()
         return events
 
     def _process_speech_end(self) -> list[PipelineEvent]:
@@ -232,7 +269,10 @@ class Pipeline:
             return events
 
         audio = np.concatenate(audio_frames)
+        t0 = time.monotonic()
         transcript_text = self._transcriber.transcribe(audio)
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        logger.info("Transcription completed in %.1fms: %r", elapsed_ms, transcript_text)
 
         if not transcript_text.strip():
             logger.debug("Empty transcription, discarding")
@@ -245,6 +285,7 @@ class Pipeline:
             submit_words=self._config.submitWords,
             cancel_words=self._config.cancelWords,
         )
+        logger.info("Command word detection: action=%s", action.value)
 
         if mode == "continuousDictation":
             events.extend(self._handle_continuous_dictation(cleaned, action, transcript_text))

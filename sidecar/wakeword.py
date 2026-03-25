@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
 
 from sidecar.audio import FRAME_SAMPLES
+
+logger = logging.getLogger(__name__)
 
 # openWakeWord expects 1280-sample chunks at 16kHz
 WAKEWORD_FRAME_SAMPLES = 1280
@@ -57,6 +60,7 @@ class WakeWordDetector:
                 self._model = oww.Model(wakeword_models=[model_path])
             else:
                 self._model = oww.Model()
+            logger.info("Wake word model loaded: name=%s, threshold=%.2f", model_name, threshold)
 
         # Accumulation buffer for resampling 480-sample frames → 1280-sample chunks
         self._buffer = np.array([], dtype=np.int16)
@@ -92,6 +96,8 @@ class WakeWordDetector:
 
             score = predictions.get(self.model_name, 0.0)
             if score >= self.threshold:
+                logger.info("Wake word detected: model=%s, score=%.3f, frame=%d",
+                           self.model_name, score, self._predict_call_count)
                 self._last_detection_frame_index = self._predict_call_count
                 events.append(
                     WakeWordDetected(

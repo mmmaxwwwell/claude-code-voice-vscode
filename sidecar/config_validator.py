@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from typing import List
 
 from sidecar.protocol import ConfigMessage
@@ -30,10 +29,8 @@ def validate_config(config: ConfigMessage) -> List[str]:
             f"got {config.whisperModel!r}"
         )
 
-    if config.inputMode == "wakeWord" and not os.path.isfile(config.wakeWord):
-        errors.append(
-            f"wakeWord file does not exist: {config.wakeWord!r}"
-        )
+    if config.inputMode == "wakeWord" and not config.wakeWord:
+        errors.append("wakeWord must be a non-empty model name in wakeWord mode")
 
     if not config.submitWords:
         errors.append("submitWords must be a non-empty list")
