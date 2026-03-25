@@ -70,6 +70,11 @@ export class SidecarManager extends EventEmitter<SidecarManagerEvents> {
       { stdio: ["ignore", "pipe", "pipe"] }
     );
 
+    // Drain stdout/stderr to prevent the child process from blocking
+    // when the OS pipe buffer fills up (~64KB).
+    this._process.stdout?.resume();
+    this._process.stderr?.resume();
+
     this._process.on("error", (err) => {
       this._process = null;
       this.emit("error", err);
