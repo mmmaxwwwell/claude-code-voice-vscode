@@ -41,7 +41,31 @@ The implementation is well-aligned with the spec, constitution, and research dec
 
 **Decision needed**: Is the simpler approach acceptable, or should typed error classes be added for consistency with the spec?
 
-### 5. `np.ndarray` type annotations with lazy numpy imports
+### 5. Socket connection timing is racy (extension.ts:89-101)
+
+**Context**: After sidecar starts, extension waits a fixed 500ms before connecting to the socket. If the sidecar takes longer to create the socket file, the connection fails silently. Integration tests use a `connectWithRetry` polling pattern, but the production code does not.
+
+**Impact**: On slow machines or cold starts, the extension may fail to connect to the sidecar, requiring the user to toggle listening off and on.
+
+**Decision needed**: Replace `setTimeout(500)` with a retry/polling pattern? Low risk currently but affects reliability.
+
+### 6. Silent error suppression in claude-bridge.ts delivery queue
+
+**Context**: The promise-chain queue uses `.catch(() => {})` to prevent unhandled rejection crashes. If `vscode.commands.executeCommand("type", { text })` or `claude-vscode.sidebar.open` fails, the error is silently swallowed and the transcript is lost.
+
+**Impact**: If Claude Code is installed but unresponsive, the user gets no feedback that their voice command was lost.
+
+**Decision needed**: Add try-catch logging and optionally a notification on delivery failure? Or is silent failure acceptable since it's rare?
+
+### 7. Model download rename race (model-manager.ts:134-140)
+
+**Context**: After successful download, the code does `fs.rm(modelDir)` then `fs.rename(tempDir, modelDir)`. If `rename` fails after `rm`, the model is lost (neither in temp nor final location).
+
+**Impact**: Extremely unlikely race condition. Would only happen on filesystem errors during the rename step.
+
+**Decision needed**: Reverse the order (rename first, then cleanup)? Or accept the risk as negligible?
+
+### 8. `np.ndarray` type annotations with lazy numpy imports
 
 **Context**: Several sidecar modules (`pipeline.py`, `vad.py`, `wakeword.py`, `audio.py`, `transcriber.py`) use `np.ndarray` in type hints while numpy is lazy-imported. This works at runtime due to `from __future__ import annotations` (PEP 563 deferred evaluation), but would break if someone adds runtime type checking (e.g., `beartype`).
 
