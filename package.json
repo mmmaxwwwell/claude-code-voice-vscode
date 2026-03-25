@@ -30,6 +30,28 @@
       {
         "command": "claude-voice.checkDependencies",
         "title": "Claude Voice: Check Dependencies"
+      },
+      {
+        "command": "claude-voice.pttStart",
+        "title": "Claude Voice: Push-to-Talk Start"
+      },
+      {
+        "command": "claude-voice.pttStop",
+        "title": "Claude Voice: Push-to-Talk Stop"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "claude-voice.pttStart",
+        "key": "ctrl+shift+space",
+        "mac": "cmd+shift+space",
+        "when": "!claude-voice.pttActive"
+      },
+      {
+        "command": "claude-voice.pttStop",
+        "key": "ctrl+shift+space",
+        "mac": "cmd+shift+space",
+        "when": "claude-voice.pttActive"
       }
     ],
     "configuration": {
