@@ -135,7 +135,7 @@
 
 **Independent Test**: Feed multiple utterances with submit/cancel words, verify correct delivery/discard per chunk.
 
-- [ ] T029 Integration test: continuous dictation submit. Configure sidecar in `continuousDictation` mode. Feed audio with "refactor the auth module send it". Verify transcript "refactor the auth module" delivered. `tests/integration/sidecar-continuous.test.ts`. [Story 3]
+- [x] T029 Integration test: continuous dictation submit. Configure sidecar in `continuousDictation` mode. Feed audio with "refactor the auth module send it". Verify transcript "refactor the auth module" delivered. `tests/integration/sidecar-continuous.test.ts`. [Story 3]
 - [ ] T030 Integration test: continuous dictation cancel. Feed audio with "do something never mind". Verify transcript discarded. [Story 3]
 - [ ] T031 Integration test: continuous dictation multi-segment accumulation. Feed multiple VAD speech segments without command words, then a segment with "send it". Verify all segments accumulated into one transcript. [FR-063, Story 3]
 
