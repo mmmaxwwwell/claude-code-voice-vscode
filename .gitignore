@@ -1,0 +1,28 @@
+# Nix / direnv
+.direnv/
+flake.lock
+
+# Node
+node_modules/
+dist/
+out/
+coverage/
+
+# VS Code extension
+.vscode-test/
+*.vsix
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.uv/
+
+# Models (downloaded at runtime)
+*.onnx
+
+# Environment
+.env
