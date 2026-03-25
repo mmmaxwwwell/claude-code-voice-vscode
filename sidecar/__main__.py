@@ -16,8 +16,6 @@ import signal
 import sys
 import traceback
 
-import numpy as np
-
 from sidecar.audio import AudioInputStream
 from sidecar.config_validator import validate_config
 from sidecar.errors import VoiceError
@@ -36,9 +34,11 @@ from sidecar.shutdown import ShutdownRegistry
 logger = logging.getLogger("sidecar")
 
 
-def _load_wav_file(path: str) -> np.ndarray:
+def _load_wav_file(path: str):
     """Load a 16kHz mono WAV file as int16 numpy array."""
     import wave
+
+    import numpy as np
 
     with wave.open(path, "rb") as wf:
         if wf.getframerate() != 16000:
