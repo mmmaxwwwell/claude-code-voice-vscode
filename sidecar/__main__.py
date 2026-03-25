@@ -234,7 +234,17 @@ class SidecarApp:
 
         self._config = msg
         # Rebuild pipeline with new config
-        self._pipeline = Pipeline(self._config)
+        try:
+            self._pipeline = Pipeline(self._config)
+        except Exception as exc:
+            logger.error("Failed to create pipeline: %s", exc)
+            await self._server.send(
+                ErrorMessage(
+                    code="DEPENDENCY_MISSING",
+                    message=f"Failed to initialize pipeline: {exc}",
+                )
+            )
+            self._pipeline = None
 
     async def _handle_control(self, msg: ControlMessage) -> None:
         """Handle a control message from the extension."""
@@ -276,15 +286,35 @@ class SidecarApp:
 
         # Rebuild pipeline if needed
         if self._pipeline is None:
-            self._pipeline = Pipeline(self._config)
+            try:
+                self._pipeline = Pipeline(self._config)
+            except Exception as exc:
+                logger.error("Failed to create pipeline: %s", exc)
+                await self._server.send(
+                    ErrorMessage(
+                        code="DEPENDENCY_MISSING",
+                        message=f"Failed to initialize pipeline: {exc}",
+                    )
+                )
+                return
 
-        file_source = None
-        if self._audio_file:
-            file_source = _load_wav_file(self._audio_file)
-        self._audio = AudioInputStream(
-            device=self._config.micDevice or None,
-            file_source=file_source,
-        )
+        try:
+            file_source = None
+            if self._audio_file:
+                file_source = _load_wav_file(self._audio_file)
+            self._audio = AudioInputStream(
+                device=self._config.micDevice or None,
+                file_source=file_source,
+            )
+        except Exception as exc:
+            logger.error("Failed to initialize audio: %s", exc)
+            await self._server.send(
+                ErrorMessage(
+                    code="AUDIO_DEVICE_ERROR",
+                    message=f"Failed to initialize audio: {exc}",
+                )
+            )
+            return
 
         # Register dynamic cleanup hooks for active listening components
         self._shutdown_registry.register_hook(

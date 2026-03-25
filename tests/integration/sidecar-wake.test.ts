@@ -15,8 +15,8 @@
  * transcription may not produce meaningful results.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
-import { spawn, type ChildProcess } from "node:child_process";
+import { describe, it, expect, afterEach, beforeAll } from "vitest";
+import { spawn, execSync, type ChildProcess } from "node:child_process";
 import { createConnection, type Socket } from "node:net";
 import { join } from "node:path";
 import { unlinkSync, existsSync } from "node:fs";
@@ -36,6 +36,23 @@ import {
 const PROJECT_ROOT = join(__dirname, "..", "..");
 const FIXTURE_DIR = join(PROJECT_ROOT, "tests", "fixtures", "audio");
 const WAKE_AND_COMMAND_WAV = join(FIXTURE_DIR, "wake-and-command.wav");
+
+/**
+ * Check if native ML dependencies required for end-to-end pipeline are available.
+ * The sidecar needs numpy, webrtcvad, onnxruntime, openwakeword, and faster-whisper.
+ */
+let nativeDepsAvailable = false;
+beforeAll(() => {
+  try {
+    execSync(
+      "python -c \"import numpy; import webrtcvad; import openwakeword; import faster_whisper\"",
+      { cwd: PROJECT_ROOT, timeout: 10_000, stdio: "pipe" },
+    );
+    nativeDepsAvailable = true;
+  } catch {
+    nativeDepsAvailable = false;
+  }
+});
 
 /** Timeout for the entire test (sidecar startup + audio processing). */
 const TEST_TIMEOUT_MS = 30_000;
@@ -179,7 +196,12 @@ describe("sidecar wake word end-to-end", () => {
 
   it(
     "spawns sidecar, feeds wake-and-command.wav, and receives expected message flow",
-    async () => {
+    // Skip when native ML deps (numpy, webrtcvad, openwakeword, faster-whisper) are unavailable
+    async ({ skip }) => {
+      if (!nativeDepsAvailable) {
+        skip();
+        return;
+      }
       socketPath = tmpSocketPath();
 
       // Spawn sidecar with audio file override

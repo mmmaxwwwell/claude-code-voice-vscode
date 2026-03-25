@@ -110,6 +110,7 @@
 
 - [x] phase5-user-story-1-4-wake--fix1 Fix phase validation failure: read specs/001-voice-mode/validate/phase5-user-story-1-4-wake-/ for failure history
 - [x] phase5-user-story-1-4-wake--fix2 Fix phase validation failure: read specs/001-voice-mode/validate/phase5-user-story-1-4-wake-/ for failure history
+- [x] phase5-user-story-1-4-wake--fix3 Fix phase validation failure: read specs/001-voice-mode/validate/phase5-user-story-1-4-wake-/ for failure history
 
 **Checkpoint**: Wake word activation works end-to-end. Status bar reflects state correctly. Sidecar auto-restarts. `npm run test:unit && npm run test:integration` pass.
 
