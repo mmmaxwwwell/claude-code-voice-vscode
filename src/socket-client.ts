@@ -109,6 +109,11 @@ export class SocketClient extends EventEmitter<SocketClientEvents> {
       this.buffer += chunk.toString("utf-8");
       this.processBuffer();
     });
+
+    // Prevent unhandled 'error' events from crashing the extension host.
+    // Socket errors (ECONNRESET, EPIPE, etc.) emit 'error' before 'close';
+    // the close handler already triggers reconnect logic.
+    this.socket?.on("error", () => {});
   }
 
   private processBuffer(): void {
