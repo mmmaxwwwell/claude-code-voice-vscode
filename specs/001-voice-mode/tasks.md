@@ -64,7 +64,7 @@
 
 - [x] T018 [P] Implement `src/protocol.ts`: TypeScript interfaces for all message types matching `contracts/socket-protocol.md` (ConfigMessage, ControlMessage, StatusMessage, TranscriptMessage, ErrorMessage). Type guards (`isStatusMessage`, `isTranscriptMessage`, etc.). Serialize/deserialize functions. Unit tests: round-trip all types, reject malformed JSON, type guards. `tests/unit/ts/protocol.test.ts`. [FR-011]
 - [ ] T019 Implement `src/socket-client.ts`: connect to Unix domain socket via `net.createConnection`. NDJSON line-buffered reader (handle partial lines). Send typed messages, receive via EventEmitter (`on('status', ...)`, `on('transcript', ...)`, `on('error', ...)`). Auto-reconnect on disconnect with backoff (for sidecar restart). Unit tests: mock socket, verify message framing and event emission. `tests/unit/ts/socket-client.test.ts`. [FR-010]
-- [ ] T020 [P] Implement `src/config.ts`: read VS Code workspace settings → build ConfigMessage. Listen for `vscode.workspace.onDidChangeConfiguration` → push updated config to sidecar via socket. Unit tests: settings object → correct ConfigMessage fields. `tests/unit/ts/config.test.ts`. [FR-012]
+- [x] T020 [P] Implement `src/config.ts`: read VS Code workspace settings → build ConfigMessage. Listen for `vscode.workspace.onDidChangeConfiguration` → push updated config to sidecar via socket. Unit tests: settings object → correct ConfigMessage fields. `tests/unit/ts/config.test.ts`. [FR-012]
 
 **Checkpoint**: `npm run test:unit` — protocol and socket client tests pass.
 
