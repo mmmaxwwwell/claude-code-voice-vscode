@@ -152,6 +152,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (socketClient?.connected) {
         socketClient.send({ type: "control", action: "ptt_start" });
         statusBar?.setState(VoiceState.Listening);
+        vscode.commands.executeCommand("setContext", "claude-voice.pttActive", true);
       }
     }
   );
@@ -161,6 +162,7 @@ export function activate(context: vscode.ExtensionContext): void {
     () => {
       if (socketClient?.connected) {
         socketClient.send({ type: "control", action: "ptt_stop" });
+        vscode.commands.executeCommand("setContext", "claude-voice.pttActive", false);
       }
     }
   );
