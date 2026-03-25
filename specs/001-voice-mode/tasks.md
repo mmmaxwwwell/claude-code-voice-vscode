@@ -109,7 +109,7 @@
 - [x] T026 Integration test: sidecar lifecycle. Spawn real sidecar, verify socket connection. Kill sidecar, verify auto-restart. Kill 3× in <60s, verify circuit breaker stops. `tests/integration/sidecar-lifecycle.test.ts`. [SC-004]
 
 - [x] phase5-user-story-1-4-wake--fix1 Fix phase validation failure: read specs/001-voice-mode/validate/phase5-user-story-1-4-wake-/ for failure history
-- [ ] phase5-user-story-1-4-wake--fix2 Fix phase validation failure: read specs/001-voice-mode/validate/phase5-user-story-1-4-wake-/ for failure history
+- [x] phase5-user-story-1-4-wake--fix2 Fix phase validation failure: read specs/001-voice-mode/validate/phase5-user-story-1-4-wake-/ for failure history
 
 **Checkpoint**: Wake word activation works end-to-end. Status bar reflects state correctly. Sidecar auto-restarts. `npm run test:unit && npm run test:integration` pass.
 

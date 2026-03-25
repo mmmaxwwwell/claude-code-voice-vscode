@@ -6,8 +6,6 @@ import logging
 import queue
 from typing import Generator
 
-import numpy as np
-
 from sidecar.errors import AudioError
 
 logger = logging.getLogger(__name__)
@@ -17,6 +15,12 @@ CHANNELS = 1
 DTYPE = "int16"
 FRAME_DURATION_MS = 30
 FRAME_SAMPLES = SAMPLE_RATE * FRAME_DURATION_MS // 1000  # 480
+
+
+def _import_numpy():
+    """Lazy import of numpy to avoid loading C extensions at module level."""
+    import numpy as np
+    return np
 
 
 def _import_sounddevice():
@@ -43,7 +47,7 @@ class AudioInputStream:
         self.frame_duration_ms = FRAME_DURATION_MS
         self.frame_samples = FRAME_SAMPLES
         self._file_source = file_source
-        self._queue: queue.Queue[np.ndarray | None] = queue.Queue()
+        self._queue: queue.Queue = queue.Queue()
         self._running = False
 
     def stop(self) -> None:
@@ -72,8 +76,9 @@ class AudioInputStream:
 
         yield from self._frames_from_mic()
 
-    def _frames_from_file(self) -> Generator[np.ndarray, None, None]:
+    def _frames_from_file(self) -> Generator:
         """Yield frames from the file source array."""
+        np = _import_numpy()
         logger.debug("Streaming audio from file source (%d samples)", len(self._file_source))
         data = self._file_source
         assert data is not None

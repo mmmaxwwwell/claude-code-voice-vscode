@@ -6,8 +6,9 @@ verify correct status events and transcript output for all three modes.
 
 from __future__ import annotations
 
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy", exc_type=ImportError)
 
 from sidecar.audio import FRAME_SAMPLES, SAMPLE_RATE
 from sidecar.command_words import Action

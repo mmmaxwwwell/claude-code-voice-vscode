@@ -6,8 +6,6 @@ import logging
 from collections import deque
 from dataclasses import dataclass
 
-import numpy as np
-
 from sidecar.audio import FRAME_SAMPLES, SAMPLE_RATE, FRAME_DURATION_MS
 
 logger = logging.getLogger(__name__)
@@ -35,6 +33,12 @@ def _import_webrtcvad():
     return webrtcvad
 
 
+def _import_numpy():
+    """Lazy import of numpy to avoid loading C extensions at module level."""
+    import numpy as np
+    return np
+
+
 def _load_silero_model():
     """Load Silero VAD ONNX model.
 
@@ -42,6 +46,7 @@ def _load_silero_model():
     """
     import onnxruntime as ort
     import os
+    np = _import_numpy()
 
     # Try to find the silero_vad ONNX model
     model_path = None
@@ -167,7 +172,7 @@ class VoiceActivityDetector:
             return events
 
         # Stage 2: Silero VAD — confirm speech
-        frame_float = frame.astype(np.float32) / 32768.0
+        frame_float = frame.astype(_import_numpy().float32) / 32768.0
         speech_prob = self._silero(frame_float)
 
         if speech_prob < SILERO_THRESHOLD:

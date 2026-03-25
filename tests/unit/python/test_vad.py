@@ -1,8 +1,9 @@
 """Unit tests for sidecar.vad — two-stage Voice Activity Detection."""
 
 from unittest.mock import MagicMock
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy", exc_type=ImportError)
 
 from sidecar.audio import FRAME_SAMPLES, SAMPLE_RATE
 from sidecar.vad import (

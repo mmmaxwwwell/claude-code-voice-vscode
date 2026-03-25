@@ -1,8 +1,9 @@
 """Unit tests for sidecar.audio — AudioInputStream."""
 
 from unittest.mock import MagicMock, patch
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy", exc_type=ImportError)
 
 from sidecar.audio import AudioInputStream, SAMPLE_RATE, FRAME_DURATION_MS, FRAME_SAMPLES
 from sidecar.errors import AudioError

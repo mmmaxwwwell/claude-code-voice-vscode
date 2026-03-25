@@ -5,11 +5,15 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import numpy as np
-
 from sidecar.errors import DependencyError, TranscriptionError
 
 logger = logging.getLogger(__name__)
+
+
+def _import_numpy():
+    """Lazy import of numpy to avoid loading C extensions at module level."""
+    import numpy as np
+    return np
 
 DEFAULT_MODEL_SIZE = "base"
 MODELS_DIR = Path.home() / ".cache" / "claude-voice" / "models"
@@ -79,7 +83,7 @@ class Transcriber:
             Transcribed text (stripped of leading/trailing whitespace).
         """
         # faster-whisper expects float32 normalized to [-1, 1]
-        audio_f32 = audio.astype(np.float32) / 32768.0
+        audio_f32 = audio.astype(_import_numpy().float32) / 32768.0
 
         try:
             segments, _ = self._model.transcribe(audio_f32)

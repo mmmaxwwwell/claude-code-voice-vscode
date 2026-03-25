@@ -11,8 +11,9 @@ import json
 import logging
 from io import StringIO
 
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy", exc_type=ImportError)
 
 from sidecar.audio import FRAME_SAMPLES
 from sidecar.logger import configure_logging, _JsonFormatter

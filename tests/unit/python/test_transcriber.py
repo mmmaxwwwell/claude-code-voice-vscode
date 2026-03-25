@@ -5,8 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy", exc_type=ImportError)
 
 from sidecar.errors import DependencyError, TranscriptionError
 

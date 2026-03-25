@@ -5,11 +5,15 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import numpy as np
-
 from sidecar.audio import FRAME_SAMPLES
 
 logger = logging.getLogger(__name__)
+
+
+def _import_numpy():
+    """Lazy import of numpy to avoid loading C extensions at module level."""
+    import numpy as np
+    return np
 
 # openWakeWord expects 1280-sample chunks at 16kHz
 WAKEWORD_FRAME_SAMPLES = 1280
@@ -63,13 +67,15 @@ class WakeWordDetector:
             logger.info("Wake word model loaded: name=%s, threshold=%.2f", model_name, threshold)
 
         # Accumulation buffer for resampling 480-sample frames → 1280-sample chunks
-        self._buffer = np.array([], dtype=np.int16)
+        _np = _import_numpy()
+        self._buffer = _np.array([], dtype=_np.int16)
         self._predict_call_count = 0
         self._last_detection_frame_index: int | None = None
 
     def reset(self) -> None:
         """Reset detector state for a new utterance."""
-        self._buffer = np.array([], dtype=np.int16)
+        _np = _import_numpy()
+        self._buffer = _np.array([], dtype=_np.int16)
         self._predict_call_count = 0
         self._last_detection_frame_index = None
         self._model.reset()
@@ -85,7 +91,7 @@ class WakeWordDetector:
         """
         events: list[WakeWordDetected] = []
 
-        self._buffer = np.concatenate([self._buffer, frame])
+        self._buffer = _import_numpy().concatenate([self._buffer, frame])
 
         while len(self._buffer) >= WAKEWORD_FRAME_SAMPLES:
             chunk = self._buffer[:WAKEWORD_FRAME_SAMPLES]

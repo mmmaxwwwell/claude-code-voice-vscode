@@ -1,9 +1,10 @@
 """Unit tests for sidecar.wakeword — openWakeWord wake word detection."""
 
 from unittest.mock import MagicMock, patch
-import numpy as np
 import os
 import pytest
+
+np = pytest.importorskip("numpy", exc_type=ImportError)
 import wave
 
 from sidecar.audio import FRAME_SAMPLES, SAMPLE_RATE

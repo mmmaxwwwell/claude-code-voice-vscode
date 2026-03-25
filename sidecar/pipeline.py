@@ -14,9 +14,13 @@ import uuid
 from dataclasses import dataclass
 from typing import Union
 
-import numpy as np
-
 from sidecar.audio import FRAME_DURATION_MS, FRAME_SAMPLES
+
+
+def _import_numpy():
+    """Lazy import of numpy to avoid loading C extensions at module level."""
+    import numpy as np
+    return np
 from sidecar.command_words import Action, detect_command
 from sidecar.logger import _correlation_id, with_correlation_id
 from sidecar.protocol import ConfigMessage
@@ -208,7 +212,7 @@ class Pipeline:
 
         events.append(StatusEvent(state="processing"))
 
-        audio = np.concatenate(audio_frames)
+        audio = _import_numpy().concatenate(audio_frames)
         t0 = time.monotonic()
         transcript_text = self._transcriber.transcribe(audio)
         elapsed_ms = (time.monotonic() - t0) * 1000
@@ -268,7 +272,7 @@ class Pipeline:
             events.append(StatusEvent(state="listening"))
             return events
 
-        audio = np.concatenate(audio_frames)
+        audio = _import_numpy().concatenate(audio_frames)
         t0 = time.monotonic()
         transcript_text = self._transcriber.transcribe(audio)
         elapsed_ms = (time.monotonic() - t0) * 1000
