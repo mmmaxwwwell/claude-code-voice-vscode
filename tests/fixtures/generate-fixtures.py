@@ -146,6 +146,16 @@ FIXTURES = {
         "text": "hey claude do something never mind",
         "description": "Wake word + command + cancel",
     },
+    "multi-segment.wav": {
+        "text": None,  # composite — handled specially in generators
+        "description": "Three speech segments separated by long silence for multi-segment accumulation test",
+        "segments": [
+            {"text": "refactor this function", "duration": 2.0},
+            {"text": "and fix the tests", "duration": 2.0},
+            {"text": "then deploy it send it", "duration": 2.5},
+        ],
+        "gap_duration": 2.0,
+    },
 }
 
 
@@ -184,6 +194,19 @@ def generate_synthetic(output_dir: Path) -> None:
             + silence_gap(0.15)
             + make_speech_tone("never mind", 0.8)
         ),
+    )
+
+    # Multi-segment fixture: 3 speech segments separated by long silence gaps
+    # (>1.5s to trigger VAD speech_end between segments)
+    spec = FIXTURES["multi-segment.wav"]
+    segments_audio: list[int] = []
+    for i, seg in enumerate(spec["segments"]):
+        if i > 0:
+            segments_audio += silence_gap(spec["gap_duration"])
+        segments_audio += make_speech_tone(seg["text"], seg["duration"])
+    write_wav(
+        output_dir / "multi-segment.wav",
+        pad_with_silence(segments_audio, pre_s=0.3, post_s=2.0),
     )
 
 
@@ -232,6 +255,40 @@ def generate_tts(output_dir: Path) -> None:
 
             int_samples = [int(max(-MAX_INT16, min(MAX_INT16, s))) for s in samples]
             write_wav(output_dir / name, pad_with_silence(int_samples))
+
+    # Multi-segment fixture: TTS each segment, concatenate with silence gaps
+    ms_spec = FIXTURES["multi-segment.wav"]
+    ms_segments: list[list[int]] = []
+    for seg in ms_spec["segments"]:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
+            result = subprocess.run(
+                ["piper", "--model", "en_US-lessac-medium", "--output_file", tmp.name],
+                input=seg["text"].encode(),
+                capture_output=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"piper-tts failed for multi-segment '{seg['text']}': {result.stderr.decode()}")
+
+            with wave.open(tmp.name, "rb") as wf:
+                orig_rate = wf.getframerate()
+                n_channels = wf.getnchannels()
+                raw = wf.readframes(wf.getnframes())
+
+            samples = np.frombuffer(raw, dtype=np.int16).astype(np.float64)
+            if n_channels > 1:
+                samples = samples[::n_channels]
+            if orig_rate != SAMPLE_RATE:
+                n_out = int(len(samples) * SAMPLE_RATE / orig_rate)
+                indices = np.linspace(0, len(samples) - 1, n_out)
+                samples = np.interp(indices, np.arange(len(samples)), samples)
+            ms_segments.append([int(max(-MAX_INT16, min(MAX_INT16, s))) for s in samples])
+
+    combined: list[int] = []
+    for i, seg_samples in enumerate(ms_segments):
+        if i > 0:
+            combined += silence_gap(ms_spec["gap_duration"])
+        combined += seg_samples
+    write_wav(output_dir / "multi-segment.wav", pad_with_silence(combined, pre_s=0.3, post_s=2.0))
 
 
 def verify_fixtures(output_dir: Path) -> bool:
