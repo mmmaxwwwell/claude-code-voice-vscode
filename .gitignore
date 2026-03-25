@@ -1,6 +1,12 @@
+# Spec-kit / agent artifacts
+test-logs/
+logs/
+validate/
+BLOCKED.md
+
 # Nix / direnv
 .direnv/
-flake.lock
+result
 
 # Node
 node_modules/
@@ -20,9 +26,18 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 .uv/
+.venv/
+venv/
 
 # Models (downloaded at runtime)
 *.onnx
 
 # Environment
 .env
+.env.local
+.env.*.local
+
+# Editor / OS
+.DS_Store
+*.swp
+*~

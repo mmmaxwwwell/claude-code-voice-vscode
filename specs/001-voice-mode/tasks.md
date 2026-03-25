@@ -18,13 +18,18 @@
 
 **Idempotency**: All tasks check-before-mutate. Skip if artifacts already exist.
 
-- [x] T001 Create `flake.nix` with devShell providing nodejs_22, python311, uv, portaudio headers. Create `.envrc` with `use flake`. Create `.gitignore` covering: `.direnv/`, `node_modules/`, `dist/`, `out/`, `.vscode-test/`, `*.vsix`, `__pycache__/`, `*.pyc`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `*.egg-info/`, `.uv/`, `*.onnx` (downloaded at runtime), `flake.lock`, `.env`, `coverage/`. [FR-092]
+- [x] T001 Create `flake.nix` with devShell providing nodejs_22, python311, uv, portaudio headers. Create `.envrc` with `use flake`. Create `.gitignore` covering: `.direnv/`, `node_modules/`, `dist/`, `out/`, `.vscode-test/`, `*.vsix`, `__pycache__/`, `*.pyc`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `*.egg-info/`, `.uv/`, `*.onnx` (downloaded at runtime), `flake.lock`, `.env`, `coverage/`, `test-logs/`, `validate/`, `BLOCKED.md`. [FR-092]
 - [x] T002 [P] Scaffold `package.json` with VS Code extension manifest: extension ID `claude-voice`, activation events (`onCommand:claude-voice.toggleListening`, `onCommand:claude-voice.downloadModel`, `onCommand:claude-voice.checkDependencies`), contributes (commands, configuration for all settings from spec, status bar item). Scripts: `dev`, `build`, `test`, `test:unit`, `test:integration`, `lint`, `lint:fix`, `typecheck`, `clean`, `check`. Dev deps: esbuild, vitest, typescript, @types/vscode. [FR-001]
 - [x] T003 [P] Scaffold `pyproject.toml` for sidecar: deps (faster-whisper, onnxruntime, openwakeword, webrtcvad, sounddevice, numpy), dev deps (pytest, pytest-asyncio). [FR-040, FR-020, FR-030]
 - [x] T004 [P] Create `tsconfig.json` (target ES2022, module node16) and esbuild build script bundling `src/extension.ts` → `dist/extension.js` with `vscode` as external.
 - [x] T005 [P] Create audio test fixtures in `tests/fixtures/audio/` plus `tests/fixtures/generate-fixtures.py` for reproducible regeneration. Speech/command fixtures via piper-tts: `command-only.wav` ("refactor this function send it"), `silence.wav` (5s), `noise.wav` (ambient). Wake word fixtures via openWakeWord synthetic speech pipeline: `wake-and-command.wav` ("hey claude refactor this function send it"), `wake-only.wav` ("hey claude"), `cancel.wav` ("hey claude do something never mind"). All 16kHz mono WAV. [SC-001, SC-002, SC-007]
 - [x] T006 [P] Create `.vscodeignore` excluding tests/, sidecar/, models/, fixtures, dev configs from packaged extension.
 - [x] T007 Create `CLAUDE.md` with quick start (nix develop, npm install, uv sync), script inventory, architecture overview (extension ↔ sidecar over Unix socket), test guide.
+- [ ] T041 [P] Create `.github/workflows/ci.yml`: GitHub Actions pipeline with jobs for lint (ESLint + ruff), typecheck, build, unit tests (vitest + pytest), integration tests, security scan (Trivy SCA, Semgrep SAST, Gitleaks secrets). Nix devshell for reproducible CI. Runs on push to main and PRs. [FR-140, FR-141, FR-142]
+- [ ] T042 [P] Create Gitleaks pre-commit hook: add gitleaks to `flake.nix`, create `.pre-commit-config.yaml` or git hook script at `.githooks/pre-commit`. [FR-143]
+- [ ] T043 [P] Create custom test reporters for structured output: Vitest custom reporter producing `test-logs/unit-ts/<timestamp>/summary.json` + `failures/<test-name>.log`. pytest plugin producing `test-logs/unit-python/<timestamp>/summary.json` + `failures/<test-name>.log`. Each failure log includes assertion details, stack trace, and context. [FR-150, FR-151, FR-152]
+- [ ] T044 [P] Create `.vscode/launch.json` with debug configurations: Extension Host debug, Vitest debug (current file), Python debugpy (attach to sidecar), pytest debug. [FR-160]
+- [ ] T045 [P] Add `clean:all` script to `package.json` that removes all dev state: `node_modules/`, `.venv/`, `dist/`, `out/`, `coverage/`, `test-logs/`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, downloaded models. [FR-161]
 
 **Checkpoint**: `nix develop --command bash -c "npm install && npm run typecheck"` passes. Project structure in place.
 
@@ -41,8 +46,26 @@
 - [x] T012 Implement `sidecar/wakeword.py`: load openWakeWord TFLite model from configurable path. Process audio frames, emit detection event. Strip wake word audio from captured segment. Unit tests with wake word fixtures: detected when present, not detected when absent. `tests/unit/python/test_wakeword.py`. [FR-030, FR-031, FR-032, FR-033]
 - [x] T013 [P] Implement `sidecar/command_words.py`: scan transcript suffix for submit/cancel words (case-insensitive). Strip matched words. Return `(cleaned_text, action)` where action is `submit`, `cancel`, or `none`. Unit tests: "refactor this send it" → ("refactor this", submit), "do something never mind" → ("", cancel), "no command word here" → ("no command word here", none). `tests/unit/python/test_command_words.py`. [FR-050, FR-051, FR-052, FR-053, FR-054]
 - [x] T014 Implement `sidecar/transcriber.py`: load faster-whisper model by size (tiny/base/small/medium) from `~/.cache/claude-voice/models/`. Transcribe audio buffer → text. Raise `TranscriptionError` on model load failure, `DependencyError` if faster-whisper missing. Unit tests with audio fixture → expected text (fuzzy match). `tests/unit/python/test_transcriber.py`. [FR-040, FR-041]
+- [ ] T046 [P] Implement `sidecar/logger.py`: structured JSON logger wrapping Python `logging` with custom formatter. Fields: `timestamp` (ISO 8601), `level`, `message`, `module`, `correlationId` (optional). `with_correlation_id(id)` context manager attaches ID to all log entries in scope. Level configurable via `CLAUDE_VOICE_LOG_LEVEL` env var (default INFO). Unit tests: verify JSON output format, correlation ID propagation, level filtering. `tests/unit/python/test_logger.py`. [FR-100, FR-101, FR-103]
+- [ ] T047 [P] Implement `sidecar/shutdown.py`: shutdown hook registry. `register_hook(name, cleanup_fn)` for modules to register during init. `shutdown()` executes hooks in reverse registration order. Per-hook and overall timeout (default 5s). Logs each step at INFO via structured logger. Unit tests: registration order, reverse execution, timeout enforcement. `tests/unit/python/test_shutdown.py`. [FR-120, FR-121, FR-122]
+- [ ] T048 [P] Implement `sidecar/config_validator.py`: validate config messages — model size is valid enum, wake word file exists (in wake word mode), submit/cancel word lists non-empty, silence timeout and max utterance duration are positive integers. Returns list of validation errors or clean config. Unit tests: valid config passes, each invalid field type caught, multiple errors returned together. `tests/unit/python/test_config_validator.py`. [FR-130, FR-131]
 
-**Checkpoint**: `uv run pytest tests/unit/python/` — all sidecar unit tests pass.
+**Checkpoint**: `uv run pytest tests/unit/python/` — all sidecar unit tests pass including logger, shutdown, and config validator.
+
+---
+
+## Phase 2b: Retroactive Infrastructure Wiring
+
+**Purpose**: Wire the new infrastructure modules (logger, shutdown, config validator, exit codes) into existing sidecar code that was implemented before these requirements were added.
+
+**Dependencies**: T046 (logger), T047 (shutdown), T048 (config_validator) must be complete.
+
+- [ ] T050 Update `sidecar/errors.py`: TDD — first write tests in `tests/unit/python/test_errors.py` for exit_code attribute on all error types and new ConfigError, verify they fail, then add `exit_code` class attribute to `VoiceError` base (default 1) and each subclass (`AudioError`=2, `TranscriptionError`=3, `DependencyError`=4). Add new `ConfigError` subclass with code `CONFIG_INVALID` and exit_code=5. [FR-110]
+- [ ] T051 Update `sidecar/__main__.py`: TDD — first write tests for `--check` flag behavior and shutdown hook execution order, verify they fail, then implement: (1) Replace `logging.basicConfig()` with `configure_logging()` from `sidecar.logger`. (2) Wire `ShutdownRegistry` — register cleanup hooks for: audio stream stop, pipeline teardown, socket server stop, socket file cleanup, log flush. Call `registry.shutdown()` in `_request_shutdown()`. (3) Add `--check` flag that initializes pipeline components (verifies audio device availability, dependency imports, model file existence — does NOT load the full whisper model into memory), reports status via structured log, exits 0 on success / error's exit_code on failure. (4) Register global unhandled exception handler via `sys.excepthook` and `asyncio` exception handler: log FATAL with stack trace, trigger shutdown, exit with code 1. [FR-111, FR-120, FR-121, FR-122, FR-123]
+- [ ] T052 Update `sidecar/__main__.py` config handling: TDD — first write tests for invalid config → error message and valid config → pipeline created, verify they fail, then implement: after receiving a `ConfigMessage`, run `validate_config()` from `sidecar.config_validator`. If validation fails, send `ErrorMessage(code="CONFIG_INVALID", message=...)` listing all errors. If no prior valid config exists, refuse to start listening (sidecar stays running, waits for valid config). If a prior valid config exists, keep using it. [FR-130, FR-131]
+- [ ] T053 Wire structured logger into existing sidecar modules: TDD — first write an integration test that verifies structured JSON log output with correlation IDs for a full utterance lifecycle, verify it fails, then wire: (1) `pipeline.py` — assign a correlation ID via `with_correlation_id()` at speech_start, use it through transcription and command word detection, clear at speech_end/cancel. (2) `server.py` — log with module name, use structured logger. (3) `audio.py`, `vad.py`, `wakeword.py`, `transcriber.py` — add `logger = logging.getLogger(__name__)` where missing, add key diagnostic log statements (model loaded, VAD state changes, transcription timing). All log statements use existing structured JSON format via the configured logger. [FR-100, FR-101, SC-009]
+
+**Checkpoint**: `uv run pytest tests/unit/python/ tests/integration/` — all tests pass. Sidecar outputs structured JSON logs with correlation IDs. `python -m sidecar --check --socket /dev/null` exits 0 when deps are available.
 
 ---
 
@@ -65,6 +88,7 @@
 - [x] T018 [P] Implement `src/protocol.ts`: TypeScript interfaces for all message types matching `contracts/socket-protocol.md` (ConfigMessage, ControlMessage, StatusMessage, TranscriptMessage, ErrorMessage). Type guards (`isStatusMessage`, `isTranscriptMessage`, etc.). Serialize/deserialize functions. Unit tests: round-trip all types, reject malformed JSON, type guards. `tests/unit/ts/protocol.test.ts`. [FR-011]
 - [ ] T019 Implement `src/socket-client.ts`: connect to Unix domain socket via `net.createConnection`. NDJSON line-buffered reader (handle partial lines). Send typed messages, receive via EventEmitter (`on('status', ...)`, `on('transcript', ...)`, `on('error', ...)`). Auto-reconnect on disconnect with backoff (for sidecar restart). Unit tests: mock socket, verify message framing and event emission. `tests/unit/ts/socket-client.test.ts`. [FR-010]
 - [x] T020 [P] Implement `src/config.ts`: read VS Code workspace settings → build ConfigMessage. Listen for `vscode.workspace.onDidChangeConfiguration` → push updated config to sidecar via socket. Unit tests: settings object → correct ConfigMessage fields. `tests/unit/ts/config.test.ts`. [FR-012]
+- [ ] T049 [P] Implement `src/logger.ts`: structured logger wrapping VS Code OutputChannel "Claude Voice". Entries include timestamp, level, module, message, correlationId. Log level filtering from `claude-voice.logLevel` setting. Unit tests: verify formatted output, level filtering, correlation ID inclusion. `tests/unit/ts/logger.test.ts`. [FR-102]
 
 **Checkpoint**: `npm run test:unit` — protocol and socket client tests pass.
 
@@ -118,7 +142,7 @@
 
 **Goal**: Auto-download whisper models on first use, manual download command.
 
-- [ ] T032 Implement `src/model-manager.ts`: check model existence at `~/.cache/claude-voice/models/<model>/`. Download from Hugging Face (faster-whisper model repos) with progress via `vscode.window.withProgress`. Clean up partial downloads on failure/cancel. "Download Model" command: quick-pick model size, trigger download. Unit tests: mock fetch, verify progress, partial cleanup. `tests/unit/ts/model-manager.test.ts`. [FR-042, FR-043, FR-044, FR-090, FR-091, Story 5]
+- [ ] T032 Implement `src/model-manager.ts`: check model existence at `~/.cache/claude-voice/models/<model>/` [FR-090]. Download from Hugging Face (faster-whisper model repos) with progress via `vscode.window.withProgress`. Clean up partial downloads on failure/cancel. "Download Model" command: quick-pick model size, trigger download. Unit tests: mock fetch, verify progress, partial cleanup. `tests/unit/ts/model-manager.test.ts`. [FR-042, FR-043, FR-044, FR-090, FR-091, Story 5]
 - [ ] T033 Integration test: model download. Mock HTTP server serving fake model file. Trigger download, verify progress, file at correct path. Interrupt download, verify partial cleaned up. `tests/integration/model-download.test.ts`. [SC-005]
 
 **Checkpoint**: Model auto-download works. Manual download command works.
@@ -156,7 +180,7 @@
 ### Phase Dependencies
 
 ```
-Phase 1 (Setup) ──▶ Phase 2 (Sidecar Core) ──▶ Phase 3 (Sidecar Integration)
+Phase 1 (Setup) ──▶ Phase 2 (Sidecar Core) ──▶ Phase 2b (Retro Wiring) ──▶ Phase 3 (Sidecar Integration)*
 Phase 1 ──▶ Phase 4 (Extension Protocol)
 Phase 3 + Phase 4 ──▶ Phase 5 (Wake Word + Status Bar)
 Phase 5 ──▶ Phase 6 (Push-to-Talk)
@@ -164,12 +188,16 @@ Phase 5 ──▶ Phase 7 (Continuous Dictation)
 Phase 5 ──▶ Phase 8 (Model Management)
 Phase 6 + Phase 7 + Phase 8 ──▶ Phase 9 (Error Handling)
 Phase 9 ──▶ Phase 10 (Polish)
+
+* Phase 3 is already complete but Phase 2b modifies files from Phase 3 (server.py, __main__.py).
+  Phase 2b must run before Phase 4+ to ensure the wiring is in place.
 ```
 
 ### Parallel Opportunities
 
-- **Phase 1**: T002, T003, T004, T005, T006 can all run in parallel
-- **Phase 2**: T008, T009, T013 can run in parallel (no shared deps). T010→T011→T012→T014 are sequential (each builds on audio pipeline)
+- **Phase 1**: T002, T003, T004, T005, T006, T041, T042, T043, T044, T045 can all run in parallel
+- **Phase 2**: T046, T047, T048 can run in parallel (no shared deps). T010→T011→T012→T014 are sequential (each builds on audio pipeline)
+- **Phase 2b**: T050 can run in parallel with T051. T052 depends on T048. T053 depends on T046. T051 depends on T046+T047.
 - **Phase 4**: T018, T020 can run in parallel
 - **Phase 6, 7, 8**: Can run in parallel after Phase 5 (independent user stories)
 - **Phase 10**: T037, T038 can run in parallel
@@ -177,12 +205,13 @@ Phase 9 ──▶ Phase 10 (Polish)
 ### Optimal Multi-Agent Strategy
 
 ```
-Agent A: Phase 1 → Phase 2 → Phase 3 → Phase 5 → Phase 6 → Phase 9 → Phase 10
-Agent B: (wait for Phase 1) → Phase 4 → (wait for Phase 3) → Phase 7
+Agent A: Phase 1 → Phase 2 → Phase 2b → Phase 5 → Phase 6 → Phase 9 → Phase 10
+Agent B: (wait for Phase 1) → Phase 4 → (wait for Phase 2b) → Phase 7
 Agent C: (wait for Phase 5) → Phase 8
 ```
 
-Sync points: after Phase 1 (scaffold ready), after Phase 3+4 (both sides ready), after Phase 5 (core loop works), after Phase 9 (all tests pass).
+Sync points: after Phase 1 (scaffold ready), after Phase 2b+4 (both sides ready), after Phase 5 (core loop works), after Phase 9 (all tests pass).
+Note: Phase 3 is already complete. Phase 2b retroactively updates Phase 3 files.
 
 ---
 

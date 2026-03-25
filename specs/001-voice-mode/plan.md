@@ -12,6 +12,8 @@ VS Code extension adding conversational voice input to Claude Code. A Python sid
 **Primary Dependencies**: VS Code Extension API, faster-whisper, silero-vad (ONNX), openWakeWord, webrtcvad
 **Storage**: Filesystem only — model cache at `~/.cache/claude-voice/models/`
 **Testing**: Vitest (TypeScript), pytest (Python)
+**Logging**: Structured JSON to stderr (sidecar), VS Code OutputChannel (extension). Correlation IDs per utterance.
+**CI/CD**: GitHub Actions — lint, typecheck, build, tests, Tier 1 security scanning (Trivy, Semgrep, Gitleaks)
 **Target Platform**: Linux (primary), macOS (stretch goal)
 **Project Type**: VS Code extension + Python sidecar
 **Constraints**: All processing local, all dependencies FOSS, <2s transcription latency for typical utterances
@@ -55,7 +57,8 @@ specs/001-voice-mode/
 │   ├── claude-bridge.ts          # focus Claude Code input, simulate typing, submit
 │   ├── model-manager.ts          # model download, cache, progress notification
 │   ├── config.ts                 # VS Code settings → protocol config message
-│   └── commands.ts               # VS Code command registrations
+│   ├── commands.ts               # VS Code command registrations
+│   └── logger.ts                # structured logging wrapper for OutputChannel
 ├── sidecar/                      # Python audio pipeline
 │   ├── __init__.py
 │   ├── __main__.py               # entry point — socket server, signal handling
@@ -67,7 +70,10 @@ specs/001-voice-mode/
 │   ├── command_words.py          # submit/cancel word detection & stripping
 │   ├── pipeline.py               # mic → VAD → wake word → STT orchestration
 │   ├── protocol.py               # message dataclasses, JSON serialization
-│   └── errors.py                 # VoiceError hierarchy
+│   ├── errors.py                 # VoiceError hierarchy
+│   ├── logger.py                 # structured JSON logger with correlation ID support
+│   ├── shutdown.py               # shutdown hook registry and graceful shutdown sequence
+│   └── config_validator.py       # config message validation with fail-fast
 ├── tests/
 │   ├── unit/
 │   │   ├── ts/                   # Vitest — protocol, config, status bar state machine
@@ -75,8 +81,9 @@ specs/001-voice-mode/
 │   ├── integration/
 │   │   ├── sidecar.test.ts       # spawn real sidecar, real socket, audio fixtures
 │   │   └── test_pipeline.py      # Python-side pipeline integration
-│   └── fixtures/
-│       └── audio/                # WAV files: wake word + speech, silence, noise, etc.
+│   ├── fixtures/
+│   │   └── audio/                # WAV files: wake word + speech, silence, noise, etc.
+│   └── reporters/                # custom Vitest + pytest structured test reporters
 ├── models/                       # pre-trained openWakeWord "hey claude" model (committed)
 │   └── hey_claude.tflite
 ├── flake.nix                     # Nix devshell: Node.js, Python, system deps
@@ -85,6 +92,8 @@ specs/001-voice-mode/
 ├── pyproject.toml                # sidecar deps
 ├── tsconfig.json
 ├── .vscodeignore                 # exclude tests, fixtures from packaged extension
+├── .github/workflows/ci.yml     # CI pipeline
+├── .vscode/launch.json          # debug configurations
 └── CLAUDE.md                     # development guide
 ```
 
@@ -97,14 +106,19 @@ No constitution violations. All decisions follow the simplest viable approach.
 | Two-stage VAD | Moderate | Two-stage adds one dependency (webrtcvad) but is the proven pattern — single-stage Silero wastes CPU on silence |
 | Unix socket IPC | Low | Slightly more complex than stdio but required for bidirectional async (user's explicit choice) |
 | Command word detection | Low | Simple string matching on transcript suffix — no NLP needed |
+| Structured JSON logging | Low | Adds a logger module per language but required for agent-readable diagnostics and utterance tracing |
+| Config validation module | Low | Separate module vs inline checks — keeps validation testable and config errors user-friendly |
+| Shutdown hook registry | Low | One registry vs scattered cleanup code in __main__.py — pattern from local preset requirements |
 
 ## Phase Dependencies
 
 ```
-Phase 1 (Setup) ──▶ Phase 2 (Sidecar) ──▶ Phase 3 (Extension) ──▶ Phase 4 (Integration) ──▶ Phase 5 (Polish)
-```
+Phase 1 (Setup) ──▶ Phase 2 (Sidecar) ──▶ Phase 2b (Retro Wiring) ──▶ Phase 3 (Extension) ──▶ Phase 4 (Integration) ──▶ Phase 5 (Polish)
 
-All phases are sequential — single-stream project. The sidecar must work before the extension can integrate with it.
+Phase 2b modifies existing Phase 2/3 files (__main__.py, server.py, pipeline.py, errors.py)
+to wire in new infrastructure (logger, shutdown, config validator, exit codes).
+Must run before Phase 3 (Extension) to ensure the wiring is in place.
+```
 
 ## Fix-Validate Strategy
 
@@ -112,6 +126,8 @@ All phases are sequential — single-stream project. The sidecar must work befor
 - **Phase 2 validation**: pytest runs sidecar unit + integration tests (audio fixtures → transcripts)
 - **Phase 3 validation**: vitest runs extension unit tests + sidecar integration test (spawn real sidecar, verify socket communication)
 - **Phase 4 validation**: full end-to-end test suite — audio fixture → sidecar → socket → extension → transcript verified
+- **Structured test output** (`test-logs/summary.json` + `failures/`) is the primary feedback mechanism for the fix-validate loop
+- Custom reporters (Vitest + pytest) produce this format automatically
 - **Fix budget**: Up to 10 fix iterations per phase before BLOCKED.md
 
 ---
@@ -127,7 +143,8 @@ All phases are sequential — single-stream project. The sidecar must work befor
 **T001** — Create `flake.nix` with devShell [FR-092]
 - Inputs: nodejs_22, python311, system libs (portaudio for sounddevice)
 - `devShells.default` provides: node, npm, python, uv, portaudio headers
-- `.envrc` with `use flake`, `.direnv/` in `.gitignore`
+- `.envrc` with `use flake`
+- `.gitignore` covering: `.direnv/`, `node_modules/`, `dist/`, `out/`, `.vscode-test/`, `*.vsix`, `__pycache__/`, `*.pyc`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `*.egg-info/`, `.uv/`, `*.onnx` (downloaded at runtime), `flake.lock`, `.env`, `coverage/`
 - Idempotent: skip if `flake.nix` exists
 
 **T002** — Scaffold `package.json` with VS Code extension manifest [FR-001]
@@ -163,6 +180,28 @@ All phases are sequential — single-stream project. The sidecar must work befor
 
 **T007** — Create `.vscodeignore` to exclude tests, fixtures, sidecar source from packaged extension
 
+**T041** — Create `.github/workflows/ci.yml` GitHub Actions pipeline [FR-140, FR-141, FR-142]
+- Jobs: lint (ESLint + ruff), typecheck, build, test:unit (vitest + pytest), test:integration, security-scan
+- Security scan: Trivy (SCA), Semgrep (SAST), Gitleaks (secrets)
+- Runs on push to main and PRs
+- Nix devshell for reproducible CI environment
+
+**T042** — Create Gitleaks pre-commit hook [FR-143]
+- Install gitleaks via flake.nix
+- Configure `.pre-commit-config.yaml` or git hook script
+
+**T043** — Create custom test reporters for structured output [FR-150, FR-151, FR-152]
+- Vitest custom reporter producing `test-logs/unit-ts/<timestamp>/summary.json` + `failures/`
+- pytest plugin producing `test-logs/unit-python/<timestamp>/summary.json` + `failures/`
+
+**T044** — Create VS Code `launch.json` with debug configurations [FR-160]
+- Extension Host debug config
+- Vitest debug config (run current test file)
+- Python debugpy config (attach to sidecar, run pytest)
+
+**T045** — Add `clean:all` script to package.json [FR-161]
+- Removes: node_modules, .venv, dist, out, coverage, test-logs, .pytest_cache, .mypy_cache, .ruff_cache
+
 ### Validation
 
 Run `nix develop --command bash -c "npm install && npm run typecheck && npm run test:unit"` — should pass with zero tests (infrastructure only).
@@ -178,10 +217,11 @@ Run `nix develop --command bash -c "npm install && npm run typecheck && npm run 
 ### Tasks
 
 **T008** — Implement error hierarchy (`sidecar/errors.py`) [spec: Infrastructure Decisions]
-- `VoiceError` base with `code` and `message`
+- `VoiceError` base with `code` and `message` fields
 - Sidecar-side subclasses: `AudioError`, `TranscriptionError`, `DependencyError`
 - Each error has a machine-readable code (e.g., `MIC_NOT_FOUND`, `MODEL_LOAD_FAILED`)
 - Note: `SidecarError` and `IntegrationError` are extension-side (TypeScript) only — created in T026
+- Note: Exit codes and `ConfigError` added in T050 (Phase 2b)
 
 **T009** — Implement protocol messages (`sidecar/protocol.py`) [FR-011, FR-014, FR-015, FR-016]
 - Dataclasses for each message type: `StatusMessage`, `TranscriptMessage`, `ErrorMessage`, `ConfigMessage`, `ControlMessage`
@@ -246,9 +286,64 @@ Run `nix develop --command bash -c "npm install && npm run typecheck && npm run 
 - Signal handling (SIGTERM, SIGINT) for clean shutdown
 - Logging to stderr at INFO level
 
+**T046** — Implement structured logger (`sidecar/logger.py`) [FR-100, FR-101, FR-103]
+- JSON logger wrapping Python `logging` with custom formatter
+- Fields: timestamp (ISO 8601), level, message, module
+- Correlation ID support: `with_correlation_id(id)` context manager that attaches ID to all log entries in scope
+- Level configurable via `CLAUDE_VOICE_LOG_LEVEL` env var
+- Unit tests: verify JSON format, correlation ID propagation, level filtering
+
+**T047** — Implement shutdown hook registry and graceful shutdown (`sidecar/shutdown.py`) [FR-120, FR-121, FR-122]
+- `register_hook(name, cleanup_fn)` — modules register during init
+- `shutdown()` — executes hooks in reverse order with per-hook timeout
+- Overall shutdown timeout (default 5s, configurable)
+- Logs each step at INFO level
+- Unit tests: registration order, reverse execution, timeout enforcement
+
+**T048** — Implement config validator (`sidecar/config_validator.py`) [FR-130, FR-131]
+- Validate: model size enum, wake word file exists (wake word mode), word lists non-empty, numeric ranges
+- Returns list of validation errors or clean config
+- Unit tests: valid config passes, each invalid field type caught
+
 ### Validation
 
 `uv run pytest tests/unit/python/ tests/integration/test_pipeline.py` — all sidecar tests pass.
+
+---
+
+## Phase 2b: Retroactive Infrastructure Wiring
+
+**Goal**: Wire the new infrastructure modules (logger, shutdown, config validator, exit codes) into existing sidecar code that was implemented before these requirements were added.
+
+**Dependencies**: T046, T047, T048 must be complete.
+
+### Tasks
+
+**T050** — Update error hierarchy with exit codes and ConfigError (`sidecar/errors.py`) [FR-110]
+- Add `exit_code` class attribute to `VoiceError` base (default 1) and each subclass: AudioError=2, TranscriptionError=3, DependencyError=4
+- Add `ConfigError` subclass with code `CONFIG_INVALID` and exit_code=5
+- Update unit tests to verify exit codes and new ConfigError
+
+**T051** — Update sidecar entry point with shutdown hooks, health check, and structured logging (`sidecar/__main__.py`) [FR-111, FR-120, FR-121, FR-122, FR-123]
+- Replace `logging.basicConfig()` with `configure_logging()` from `sidecar.logger`
+- Wire `ShutdownRegistry` — register cleanup hooks for: audio stream stop, pipeline teardown, socket server stop, socket file cleanup, log flush
+- Add `--check` flag that initializes pipeline components (audio device, model), reports status, exits 0/non-zero
+- Register global unhandled exception handler: log FATAL with stack trace, trigger shutdown, exit with code 1
+
+**T052** — Add config validation to sidecar config handling (`sidecar/__main__.py`) [FR-130, FR-131]
+- After receiving a `ConfigMessage`, run `validate_config()`
+- On validation failure: send `ErrorMessage(code="CONFIG_INVALID", ...)`, keep last-known-good config or refuse to start
+- Unit test: invalid config → error message, valid config → pipeline created
+
+**T053** — Wire structured logger into all existing sidecar modules [FR-100, FR-101, SC-009]
+- `pipeline.py`: assign correlation ID at speech_start, carry through transcription/command detection, clear at speech_end
+- `server.py`: use structured logger for all log statements
+- `audio.py`, `vad.py`, `wakeword.py`, `transcriber.py`: add `logger = logging.getLogger(__name__)` where missing, add key diagnostic log statements (model loaded, VAD state changes, transcription timing)
+- Verify structured JSON output in integration tests
+
+### Validation
+
+`uv run pytest tests/unit/python/ tests/integration/` — all tests pass. Sidecar outputs structured JSON logs with correlation IDs. `python -m sidecar --check --socket /dev/null` exits 0.
 
 ---
 
@@ -256,12 +351,20 @@ Run `nix develop --command bash -c "npm install && npm run typecheck && npm run 
 
 **Goal**: Working VS Code extension — lifecycle management, socket client, status bar, Claude Code bridge.
 
+**Note**: tasks.md is authoritative for task grouping and phase boundaries. This plan groups tasks into broader phases for architectural clarity; tasks.md splits them into finer-grained phases (4–9) for execution ordering.
+
 ### Tasks
 
 **T018** — Implement protocol types (`src/protocol.ts`) [FR-011]
 - TypeScript interfaces matching sidecar protocol (ConfigMessage, ControlMessage, StatusMessage, TranscriptMessage, ErrorMessage)
 - Serialize/deserialize functions
 - Unit tests: round-trip all message types, reject malformed JSON
+
+**T049** — Implement structured logger (`src/logger.ts`) [FR-102]
+- Wraps VS Code OutputChannel "Claude Voice"
+- Structured entries: timestamp, level, module, message, correlationId
+- Log level filtering from `claude-voice.logLevel` setting
+- Unit tests: verify formatted output, level filtering
 
 **T019** — Implement socket client (`src/socket-client.ts`) [FR-010]
 - Connect to Unix domain socket

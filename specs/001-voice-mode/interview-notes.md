@@ -48,10 +48,15 @@
 
 | Topic | Decision | Status |
 |-------|----------|--------|
-| Logging | Python `logging` at INFO, VS Code OutputChannel | Accepted (default) |
-| Error handling | VoiceError hierarchy (Sidecar, Audio, Transcription, Dependency, Integration) | Accepted |
-| Configuration | VS Code settings → socket config message to sidecar | Accepted |
-| CI/CD | None initially | Accepted (default) |
+| Logging | Structured JSON to stderr (sidecar), VS Code OutputChannel (extension). Correlation IDs per utterance. Level via `CLAUDE_VOICE_LOG_LEVEL` env var. | Updated per local preset |
+| Error handling | VoiceError hierarchy (Sidecar, Audio, Transcription, Config, Dependency, Integration) with exit codes per category. Global unhandled exception handler. | Updated per local preset |
+| Configuration | VS Code settings → socket config message to sidecar. Fail-fast validation on receipt. | Updated per local preset |
+| Graceful shutdown | Shutdown hook registry, reverse-order cleanup, 5s timeout. SIGTERM/SIGINT handling. | Added per local preset |
+| Config validation | Sidecar validates config on receipt — model enum, file existence, non-empty word lists, numeric ranges | Added per local preset |
+| CI/CD | GitHub Actions: lint, typecheck, build, tests, Tier 1 security (Trivy, Semgrep, Gitleaks). Gitleaks pre-commit hook. | Updated per local preset |
+| Structured test output | Custom Vitest + pytest reporters producing `test-logs/` with `summary.json` + failure logs | Added per local preset |
+| DX tooling | VS Code `launch.json` debug configs, `clean:all` script | Added per local preset |
+| Health check | `--check` flag on sidecar to verify pipeline can initialize | Added per local preset |
 | Branching | Direct-to-main | Accepted (default) |
 | Auth | N/A (local tool) | Skipped per preset |
 | Security | N/A (local tool, no network) | Skipped per preset |

@@ -99,6 +99,8 @@ The user selects a whisper model size in settings (tiny, base, small, medium). O
 - **Sidecar crash mid-transcription**: Pending audio is lost. Extension detects socket disconnect, shows Error status, auto-restarts sidecar. No partial transcript is delivered.
 - **Sidecar fails to start** (Python not found, missing dependencies): Extension shows error notification with actionable message ("Python sidecar failed to start: missing faster-whisper. Run `pip install faster-whisper`"). Status stays Error.
 - **3+ crashes in 60 seconds**: Auto-restart stops. Error notification tells user to check logs. Manual restart via status bar click or command.
+- **Config validation failure**: Sidecar receives invalid config (e.g., non-existent model size). Sends `CONFIG_INVALID` error, continues with last-known-good config. If no prior valid config, sidecar stays running but refuses to start listening until a valid config arrives.
+- **Unhandled exception in sidecar**: Global handler catches it, logs FATAL with stack trace, runs shutdown sequence, exits code 1. Extension detects exit and auto-restarts per circuit breaker.
 
 **Audio & transcription:**
 - **No microphone available**: Sidecar reports error on startup. Extension shows notification: "No microphone found". Status stays Error.
@@ -192,6 +194,41 @@ The user selects a whisper model size in settings (tiny, base, small, medium). O
 - **FR-091**: Partial/interrupted downloads MUST be cleaned up (no partial files left on disk)
 - **FR-092**: Extension MUST provide a "Check Dependencies" command that verifies Python, faster-whisper, silero-vad, openwakeword are available
 
+#### Structured Logging
+- **FR-100**: Sidecar MUST log structured JSON to stderr with fields: `timestamp` (ISO 8601), `level`, `message`, `module`, and optional `correlationId`
+- **FR-101**: Each utterance (speech_start through transcript delivery or cancel) MUST be assigned a correlation ID, included in all log entries for that utterance
+- **FR-102**: Extension MUST log to a VS Code OutputChannel named "Claude Voice" with structured entries including timestamp, level, module, and correlationId where applicable
+- **FR-103**: Log levels MUST follow the standard hierarchy: DEBUG, INFO, WARN, ERROR, FATAL. Level MUST be configurable via environment variable `CLAUDE_VOICE_LOG_LEVEL` (default: INFO). FATAL is internal-only (used by the unhandled exception handler) and not exposed in the user-facing `logLevel` setting.
+
+#### Error Exit Codes
+- **FR-110**: Sidecar MUST exit with distinct non-zero exit codes per error category: 1 (general), 2 (audio/mic), 3 (model/transcription), 4 (dependency missing), 5 (config validation)
+- **FR-111**: Sidecar MUST register a global unhandled exception handler that logs at FATAL level with full stack trace, triggers graceful shutdown, and exits with code 1
+
+#### Graceful Shutdown
+- **FR-120**: Sidecar MUST implement a shutdown hook registry where modules register cleanup functions during initialization
+- **FR-121**: On SIGTERM/SIGINT, sidecar MUST execute shutdown hooks in reverse registration order: stop audio capture, cancel any in-progress transcription, close socket, clean up socket file, flush logs
+- **FR-122**: Sidecar MUST enforce a shutdown timeout (default 5 seconds). If cleanup exceeds the timeout, log WARN and force-exit with code 1
+- **FR-123**: Sidecar MUST support a `--check` flag that verifies the pipeline can initialize (audio device available, models loadable) and exits 0 on success, non-zero on failure
+
+#### Configuration Validation
+- **FR-130**: Sidecar MUST validate config messages on receipt: model size is valid enum, wake word model file exists (in wake word mode), submit/cancel word lists are non-empty, silence timeout and max utterance duration are positive integers
+- **FR-131**: On invalid config, sidecar MUST send an `error` message with code `CONFIG_INVALID` and a human-readable description of every invalid field, then continue with last-known-good config. If no prior valid config exists, sidecar stays running but refuses to start listening until a valid config is received.
+
+#### CI/CD
+- **FR-140**: Project MUST include a GitHub Actions workflow (`.github/workflows/ci.yml`) that runs on pushes to main and pull requests
+- **FR-141**: CI pipeline MUST run: lint (ESLint + ruff), typecheck, build, unit tests (vitest + pytest), integration tests
+- **FR-142**: CI pipeline MUST include Tier 1 security scanning: Trivy (SCA), Semgrep (SAST), Gitleaks (secret scanning)
+- **FR-143**: Project MUST include a Gitleaks pre-commit hook to prevent secrets from being committed
+
+#### Structured Test Output
+- **FR-150**: Test runs MUST produce structured output in `test-logs/<type>/<timestamp>/` with a `summary.json` containing pass/fail/skip counts, duration, and failure list
+- **FR-151**: Each failing test MUST produce a `failures/<test-name>.log` with assertion details, stack trace, and relevant context (server logs, stderr)
+- **FR-152**: Project MUST implement custom test reporters for both Vitest and pytest to produce the structured output format
+
+#### Developer Experience
+- **FR-160**: Project MUST include a VS Code `launch.json` with debug configurations for: attaching to the extension host, running TypeScript tests with debugger, running Python tests with debugger
+- **FR-161**: Project MUST include a `clean:all` script that removes all dev state (node_modules, .venv, dist, coverage, test-logs, downloaded models) — returning to clone-fresh state
+
 ### Key Entities
 
 - **Sidecar Process**: Long-running Python process managing audio capture, VAD, wake word, and STT
@@ -214,12 +251,13 @@ The user selects a whisper model size in settings (tiny, base, small, medium). O
 | `claude-voice.silenceTimeout` | number | `1500` | Milliseconds of silence before ending an utterance (applies to VAD speech-end detection across all modes) |
 | `claude-voice.maxUtteranceDuration` | number | `60000` | Maximum single utterance duration in ms |
 | `claude-voice.micDevice` | string | `""` | Microphone device name (empty = system default) |
+| `claude-voice.logLevel` | enum | `info` | Log level: `debug`, `info`, `warn`, `error` |
 
 ---
 
 ## Infrastructure Decisions (local preset)
 
-**Logging**: Python `logging` module at INFO level, stderr output. Extension side uses VS Code `OutputChannel` named "Claude Voice". No correlation IDs.
+**Logging**: Structured JSON to stderr (sidecar) and VS Code OutputChannel (extension). Fields: timestamp, level, message, module, correlationId. Correlation IDs assigned per utterance to trace the full pipeline. Level configurable via `CLAUDE_VOICE_LOG_LEVEL` env var (default: INFO).
 
 **Error handling**: Simple hierarchy:
 ```
@@ -227,6 +265,7 @@ VoiceError (base)
 ├── SidecarError        — sidecar process failures (crash, start failure)
 ├── AudioError          — microphone/audio capture issues
 ├── TranscriptionError  — STT model failures
+├── ConfigError         — invalid configuration (bad model name, missing wake word file)
 ├── DependencyError     — missing Python packages or tools
 └── IntegrationError    — Claude Code extension communication failures
 ```
@@ -234,7 +273,7 @@ Extension-side errors surface as VS Code notifications. Sidecar-side errors are 
 
 **Configuration**: VS Code settings for extension config. Sidecar receives config via socket `config` message on startup — no separate config file.
 
-**CI/CD**: None initially.
+**CI/CD**: GitHub Actions — lint, typecheck, build, unit tests, integration tests, Tier 1 security scanning (Trivy, Semgrep, Gitleaks). Gitleaks pre-commit hook. No deployment stage.
 
 **Branching**: Direct-to-main.
 
@@ -250,6 +289,9 @@ Extension-side errors surface as VS Code notifications. Sidecar-side errors are 
 - **SC-006**: Status bar correctly reflects Idle/Listening/Processing/Error states — validates FR-001
 - **SC-007**: Two-stage VAD prevents whisper from running on silence/noise — validates FR-020
 - **SC-008**: Extension degrades gracefully when Claude Code extension is not installed — validates FR-006
+- **SC-009**: Structured JSON logs are produced with correlation IDs tracing a full utterance lifecycle — validates FR-100, FR-101
+- **SC-010**: CI pipeline passes on clean checkout with lint, test, and security scan stages — validates FR-140, FR-141, FR-142
+- **SC-011**: `python -m sidecar --check` verifies pipeline health and exits 0 — validates FR-123
 
 ## Assumptions
 
