@@ -1,0 +1,31 @@
+# Source and dev configs
+.envrc
+.gitignore
+flake.nix
+flake.lock
+tsconfig.json
+pyproject.toml
+
+# Directories not needed in packaged extension
+tests/
+sidecar/
+models/
+specs/
+scripts/
+logs/
+src/
+coverage/
+.vscode-test/
+node_modules/
+.direnv/
+.specify/
+.claude/
+
+# Test fixtures
+tests/fixtures/
+
+# Dev and build artifacts
+**/*.map
+.eslintrc*
+.prettierrc*
+*.tgz
