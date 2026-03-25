@@ -92,6 +92,10 @@ export function activate(context: vscode.ExtensionContext): void {
         socketClient?.send(buildConfigMessage());
         logger.info("Connected to sidecar socket");
       } catch (err) {
+        statusBar?.setState(VoiceState.Error);
+        vscode.window.showErrorMessage(
+          "Claude Voice: Failed to connect to voice sidecar. Try toggling listening off and on, or run 'Claude Voice: Check Dependencies' to diagnose."
+        );
         logger.error(`Failed to connect to sidecar: ${err}`);
       }
     }, 500);
@@ -104,6 +108,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
   sidecar.on("error", (err) => {
     statusBar?.setState(VoiceState.Error);
+    vscode.window.showErrorMessage(
+      `Claude Voice: Sidecar error — ${err.message}. ` +
+      `Check the 'Claude Voice' output channel (View > Output) for details, ` +
+      `or run 'Claude Voice: Check Dependencies' to diagnose.`
+    );
     logger.error(`Sidecar error: ${err.message}`);
   });
 

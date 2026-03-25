@@ -4,21 +4,30 @@ import { createLogger } from "./logger.js";
 
 const logger = createLogger("commands");
 
-const PYTHON_DEPENDENCIES = [
-  "faster_whisper",
-  "openwakeword",
-  "webrtcvad",
-  "sounddevice",
-  "onnxruntime",
-  "numpy",
+/** Map of Python import name to pip install name. */
+const PYTHON_DEPENDENCIES: Array<{ importName: string; pipName: string }> = [
+  { importName: "faster_whisper", pipName: "faster-whisper" },
+  { importName: "openwakeword", pipName: "openwakeword" },
+  { importName: "webrtcvad", pipName: "webrtcvad" },
+  { importName: "sounddevice", pipName: "sounddevice" },
+  { importName: "onnxruntime", pipName: "onnxruntime" },
+  { importName: "numpy", pipName: "numpy" },
 ];
 
-function checkPythonDep(dep: string): Promise<{ dep: string; ok: boolean }> {
+function checkPythonAvailable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    exec("python3 --version", (err) => {
+      resolve(!err);
+    });
+  });
+}
+
+function checkPythonDep(importName: string, pipName: string): Promise<{ pipName: string; ok: boolean }> {
   return new Promise((resolve) => {
     exec(
-      `python3 -c "import ${dep}"`,
+      `python3 -c "import ${importName}"`,
       (err) => {
-        resolve({ dep, ok: !err });
+        resolve({ pipName, ok: !err });
       }
     );
   });
@@ -33,7 +42,7 @@ export function checkClaudeCodeExtension(): boolean {
   const ext = vscode.extensions.getExtension("anthropics.claude-code");
   if (!ext) {
     vscode.window.showWarningMessage(
-      "Claude Voice: Claude Code extension is not installed. Install it for voice commands to work."
+      "Claude Voice: Claude Code extension is not installed. Search for 'Claude Code' in the Extensions view (Ctrl+Shift+X) to install it."
     );
     return false;
   }
@@ -45,17 +54,30 @@ export function checkClaudeCodeExtension(): boolean {
  * Reports results via VS Code notifications.
  */
 export async function checkDependencies(): Promise<void> {
+  // Check Python availability first
+  const pythonOk = await checkPythonAvailable();
+  if (!pythonOk) {
+    vscode.window.showErrorMessage(
+      "Claude Voice: Python 3 is not installed or not in PATH. Install Python 3.11+ from https://python.org and ensure 'python3' is available in your terminal."
+    );
+    logger.error("Python 3 not found in PATH");
+    // Still check Claude Code even if Python is missing
+    checkClaudeCodeExtension();
+    return;
+  }
+
   // Check Python dependencies
   const results = await Promise.all(
-    PYTHON_DEPENDENCIES.map((dep) => checkPythonDep(dep))
+    PYTHON_DEPENDENCIES.map((d) => checkPythonDep(d.importName, d.pipName))
   );
-  const missing = results.filter((r) => !r.ok).map((r) => r.dep);
+  const missing = results.filter((r) => !r.ok).map((r) => r.pipName);
 
   if (missing.length > 0) {
     vscode.window.showErrorMessage(
-      `Claude Voice: Missing Python dependencies: ${missing.join(", ")}. Install them with: pip install ${missing.join(" ")}`
+      `Claude Voice: Missing Python packages: ${missing.join(", ")}. ` +
+      `Install with: pip install ${missing.join(" ")}`
     );
-    logger.warn(`Missing Python dependencies: ${missing.join(", ")}`);
+    logger.warn(`Missing Python packages: ${missing.join(", ")}`);
   }
 
   // Check Claude Code extension

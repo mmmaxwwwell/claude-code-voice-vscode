@@ -42,6 +42,29 @@ describe("commands", () => {
   });
 
   describe("checkDependencies", () => {
+    it("should report error when Python 3 is not available", async () => {
+      // python3 --version fails
+      mockExec.mockImplementation(
+        (cmd: string, callback: (err: Error | null, stdout: string, stderr: string) => void) => {
+          if (cmd.includes("--version")) {
+            callback(new Error("command not found: python3"), "", "");
+          } else {
+            callback(null, "", "");
+          }
+        }
+      );
+      mockGetExtension.mockReturnValue({ id: "anthropics.claude-code" });
+
+      await checkDependencies();
+
+      expect(mockShowErrorMessage).toHaveBeenCalledWith(
+        expect.stringContaining("Python 3 is not installed")
+      );
+      expect(mockShowErrorMessage).toHaveBeenCalledWith(
+        expect.stringContaining("python.org")
+      );
+    });
+
     it("should report all dependencies OK when all imports succeed", async () => {
       // exec succeeds (callback with no error)
       mockExec.mockImplementation(
@@ -61,11 +84,15 @@ describe("commands", () => {
     });
 
     it("should report missing Python dependencies when imports fail", async () => {
-      // exec fails (callback with error)
+      // python3 --version succeeds, but dep imports fail
       mockExec.mockImplementation(
-        (_cmd: string, callback: (err: Error | null, stdout: string, stderr: string) => void) => {
-          const err = new Error("ModuleNotFoundError: No module named 'faster_whisper'");
-          callback(err, "", "ModuleNotFoundError: No module named 'faster_whisper'");
+        (cmd: string, callback: (err: Error | null, stdout: string, stderr: string) => void) => {
+          if (cmd.includes("--version")) {
+            callback(null, "Python 3.11.0", "");
+          } else {
+            const err = new Error("ModuleNotFoundError: No module named 'faster_whisper'");
+            callback(err, "", "ModuleNotFoundError: No module named 'faster_whisper'");
+          }
         }
       );
       mockGetExtension.mockReturnValue({ id: "anthropics.claude-code" });
@@ -73,7 +100,7 @@ describe("commands", () => {
       await checkDependencies();
 
       expect(mockShowErrorMessage).toHaveBeenCalledWith(
-        expect.stringContaining("Missing Python dependencies")
+        expect.stringContaining("Missing Python packages")
       );
     });
 
@@ -94,10 +121,15 @@ describe("commands", () => {
     });
 
     it("should report both Python deps and Claude Code missing", async () => {
+      // python3 --version succeeds, but dep imports fail
       mockExec.mockImplementation(
-        (_cmd: string, callback: (err: Error | null, stdout: string, stderr: string) => void) => {
-          const err = new Error("failed");
-          callback(err, "", "No module named 'openwakeword'");
+        (cmd: string, callback: (err: Error | null, stdout: string, stderr: string) => void) => {
+          if (cmd.includes("--version")) {
+            callback(null, "Python 3.11.0", "");
+          } else {
+            const err = new Error("failed");
+            callback(err, "", "No module named 'openwakeword'");
+          }
         }
       );
       mockGetExtension.mockReturnValue(undefined);
@@ -105,7 +137,7 @@ describe("commands", () => {
       await checkDependencies();
 
       expect(mockShowErrorMessage).toHaveBeenCalledWith(
-        expect.stringContaining("Missing Python dependencies")
+        expect.stringContaining("Missing Python packages")
       );
       expect(mockShowWarningMessage).toHaveBeenCalledWith(
         expect.stringContaining("Claude Code extension is not installed")
@@ -165,7 +197,7 @@ describe("commands", () => {
       expect(mockGetExtension).toHaveBeenCalledWith("anthropics.claude-code");
     });
 
-    it("should return false and show warning when Claude Code is not installed", () => {
+    it("should return false and show warning with install guidance when Claude Code is not installed", () => {
       mockGetExtension.mockReturnValue(undefined);
 
       const result = checkClaudeCodeExtension();
@@ -173,6 +205,10 @@ describe("commands", () => {
       expect(result).toBe(false);
       expect(mockShowWarningMessage).toHaveBeenCalledWith(
         expect.stringContaining("Claude Code extension is not installed")
+      );
+      // Verify actionable guidance is included
+      expect(mockShowWarningMessage).toHaveBeenCalledWith(
+        expect.stringContaining("Extensions view")
       );
     });
   });

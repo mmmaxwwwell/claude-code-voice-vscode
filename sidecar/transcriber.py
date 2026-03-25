@@ -26,7 +26,9 @@ def _import_faster_whisper():
     except ImportError:
         raise DependencyError(
             "DEPENDENCY_MISSING",
-            "faster-whisper is not installed. Install with: pip install faster-whisper",
+            "The 'faster-whisper' package is not installed. "
+            "Install with: pip install faster-whisper "
+            "(or run 'Claude Voice: Check Dependencies' in VS Code for a full diagnostic).",
         )
     return faster_whisper
 
@@ -58,7 +60,9 @@ class Transcriber:
         except ImportError as exc:
             raise DependencyError(
                 "DEPENDENCY_MISSING",
-                f"faster-whisper is not installed: {exc}",
+                f"The 'faster-whisper' package is not installed. "
+                f"Install with: pip install faster-whisper "
+                f"(or run 'Claude Voice: Check Dependencies' in VS Code for a full diagnostic). Details: {exc}",
             ) from exc
 
         try:
@@ -70,7 +74,10 @@ class Transcriber:
         except Exception as exc:
             raise TranscriptionError(
                 "MODEL_LOAD_FAILED",
-                f"Failed to load whisper model '{model_size}': {exc}",
+                f"Failed to load whisper model '{model_size}': {exc}. "
+                f"The model files may be corrupted or incomplete. "
+                f"Run 'Claude Voice: Download Model' in VS Code to re-download, "
+                f"or delete {self.models_dir}/faster-whisper-{model_size}/ and try again.",
             ) from exc
 
     def transcribe(self, audio: np.ndarray) -> str:
@@ -91,7 +98,7 @@ class Transcriber:
         except Exception as exc:
             raise TranscriptionError(
                 "TRANSCRIPTION_FAILED",
-                f"Transcription failed: {exc}",
+                f"Transcription failed: {exc}. This may be a temporary issue — try speaking again.",
             ) from exc
 
         return text.strip()

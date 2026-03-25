@@ -80,7 +80,7 @@ def _check_audio_device() -> None:
 
         raise AudioError(
             "MIC_NOT_FOUND",
-            f"No audio input device found: {exc}",
+            f"No audio input device found. Connect a microphone and try again. Details: {exc}",
         ) from exc
 
 
@@ -91,14 +91,24 @@ def _check_dependencies() -> None:
     """
     from sidecar.errors import DependencyError
 
-    deps = ["faster_whisper", "webrtcvad", "openwakeword", "numpy"]
-    for dep in deps:
+    # Map import names to pip install names (they differ for some packages)
+    deps = {
+        "faster_whisper": "faster-whisper",
+        "webrtcvad": "webrtcvad",
+        "openwakeword": "openwakeword",
+        "sounddevice": "sounddevice",
+        "onnxruntime": "onnxruntime",
+        "numpy": "numpy",
+    }
+    for import_name, pip_name in deps.items():
         try:
-            __import__(dep)
+            __import__(import_name)
         except ImportError as exc:
             raise DependencyError(
                 "DEPENDENCY_MISSING",
-                f"Required dependency '{dep}' is not installed: {exc}",
+                f"Required dependency '{pip_name}' is not installed. "
+                f"Install with: pip install {pip_name} "
+                f"(or run 'Claude Voice: Check Dependencies' in VS Code for a full diagnostic).",
             ) from exc
 
 
@@ -236,12 +246,29 @@ class SidecarApp:
         # Rebuild pipeline with new config
         try:
             self._pipeline = Pipeline(self._config)
+        except ImportError as exc:
+            logger.error("Failed to create pipeline (missing dependency): %s", exc)
+            await self._server.send(
+                ErrorMessage(
+                    code="DEPENDENCY_MISSING",
+                    message=f"A required Python package is missing: {exc}. "
+                    f"Install it with pip, or run 'Claude Voice: Check Dependencies' in VS Code for a full diagnostic.",
+                )
+            )
+            self._pipeline = None
+        except VoiceError as exc:
+            logger.error("Failed to create pipeline: [%s] %s", exc.code, exc.message)
+            await self._server.send(
+                ErrorMessage(code=exc.code, message=exc.message)
+            )
+            self._pipeline = None
         except Exception as exc:
             logger.error("Failed to create pipeline: %s", exc)
             await self._server.send(
                 ErrorMessage(
                     code="DEPENDENCY_MISSING",
-                    message=f"Failed to initialize pipeline: {exc}",
+                    message=f"Failed to initialize voice pipeline: {exc}. "
+                    f"Run 'Claude Voice: Check Dependencies' in VS Code for a full diagnostic.",
                 )
             )
             self._pipeline = None
@@ -275,7 +302,7 @@ class SidecarApp:
             await self._server.send(
                 ErrorMessage(
                     code="PROTOCOL_ERROR",
-                    message="Config must be sent before starting.",
+                    message="Cannot start listening: no valid configuration received. Try toggling voice off and on again, or restart VS Code.",
                 )
             )
             return
@@ -288,12 +315,29 @@ class SidecarApp:
         if self._pipeline is None:
             try:
                 self._pipeline = Pipeline(self._config)
+            except ImportError as exc:
+                logger.error("Failed to create pipeline (missing dependency): %s", exc)
+                await self._server.send(
+                    ErrorMessage(
+                        code="DEPENDENCY_MISSING",
+                        message=f"A required Python package is missing: {exc}. "
+                        f"Install it with pip, or run 'Claude Voice: Check Dependencies' in VS Code for a full diagnostic.",
+                    )
+                )
+                return
+            except VoiceError as exc:
+                logger.error("Failed to create pipeline: [%s] %s", exc.code, exc.message)
+                await self._server.send(
+                    ErrorMessage(code=exc.code, message=exc.message)
+                )
+                return
             except Exception as exc:
                 logger.error("Failed to create pipeline: %s", exc)
                 await self._server.send(
                     ErrorMessage(
                         code="DEPENDENCY_MISSING",
-                        message=f"Failed to initialize pipeline: {exc}",
+                        message=f"Failed to initialize voice pipeline: {exc}. "
+                        f"Run 'Claude Voice: Check Dependencies' in VS Code for a full diagnostic.",
                     )
                 )
                 return
@@ -311,7 +355,7 @@ class SidecarApp:
             await self._server.send(
                 ErrorMessage(
                     code="AUDIO_DEVICE_ERROR",
-                    message=f"Failed to initialize audio: {exc}",
+                    message=f"Failed to open audio input: {exc}. Ensure a microphone is connected, not in use by another application, and that your OS grants microphone permission.",
                 )
             )
             return
