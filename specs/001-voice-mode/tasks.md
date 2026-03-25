@@ -123,7 +123,7 @@
 **Independent Test**: Send ptt_start, feed audio, send ptt_stop, verify transcript.
 
 - [x] T027 Integration test: push-to-talk → transcript. Spawn real sidecar, send `ptt_start` control, feed `command-only.wav`, send `ptt_stop`. Verify transcript delivered with correct text. `tests/integration/sidecar-ptt.test.ts`. [SC-002, Story 2]
-- [ ] T028 Integration test: push-to-talk cancel. Send `ptt_start`, feed audio containing "cancel", send `ptt_stop`. Verify transcript action is `cancel` and text is discarded. `tests/integration/sidecar-ptt-cancel.test.ts`. [Story 2]
+- [x] T028 Integration test: push-to-talk cancel. Send `ptt_start`, feed audio containing "cancel", send `ptt_stop`. Verify transcript action is `cancel` and text is discarded. `tests/integration/sidecar-ptt-cancel.test.ts`. [Story 2]
 
 **Checkpoint**: Push-to-talk works. Command words work post-transcription in PTT mode.
 
