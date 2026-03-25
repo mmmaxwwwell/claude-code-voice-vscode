@@ -147,6 +147,9 @@ Sent on connection and whenever VS Code settings change.
 | `DEPENDENCY_MISSING` | Required Python package not installed | No — user runs dependency check |
 | `AUDIO_DEVICE_ERROR` | Audio device error during capture | Maybe — auto-retry once |
 | `TRANSCRIPTION_FAILED` | Whisper inference failed | Maybe — retry with next utterance |
+| `CONFIG_INVALID` | Invalid configuration values (FR-131) | Yes — fix settings and resend config |
+| `PROTOCOL_ERROR` | Malformed or unexpected message | Yes — fix message format |
+| `CONNECTION_REJECTED` | Second client tried to connect | N/A — only one client allowed |
 
 ---
 
