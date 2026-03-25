@@ -24,7 +24,7 @@
 - [x] T004 [P] Create `tsconfig.json` (target ES2022, module node16) and esbuild build script bundling `src/extension.ts` → `dist/extension.js` with `vscode` as external.
 - [ ] T005 [P] Create audio test fixtures in `tests/fixtures/audio/` plus `tests/fixtures/generate-fixtures.py` for reproducible regeneration. Speech/command fixtures via piper-tts: `command-only.wav` ("refactor this function send it"), `silence.wav` (5s), `noise.wav` (ambient). Wake word fixtures via openWakeWord synthetic speech pipeline: `wake-and-command.wav` ("hey claude refactor this function send it"), `wake-only.wav` ("hey claude"), `cancel.wav` ("hey claude do something never mind"). All 16kHz mono WAV. [SC-001, SC-002, SC-007]
 - [x] T006 [P] Create `.vscodeignore` excluding tests/, sidecar/, models/, fixtures, dev configs from packaged extension.
-- [ ] T007 Create `CLAUDE.md` with quick start (nix develop, npm install, uv sync), script inventory, architecture overview (extension ↔ sidecar over Unix socket), test guide.
+- [x] T007 Create `CLAUDE.md` with quick start (nix develop, npm install, uv sync), script inventory, architecture overview (extension ↔ sidecar over Unix socket), test guide.
 
 **Checkpoint**: `nix develop --command bash -c "npm install && npm run typecheck"` passes. Project structure in place.
 
