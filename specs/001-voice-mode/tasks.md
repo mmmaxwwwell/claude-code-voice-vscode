@@ -29,7 +29,7 @@
 - [x] T042 [P] Create Gitleaks pre-commit hook: add gitleaks to `flake.nix`, create `.pre-commit-config.yaml` or git hook script at `.githooks/pre-commit`. [FR-143]
 - [ ] T043 [P] Create custom test reporters for structured output: Vitest custom reporter producing `test-logs/unit-ts/<timestamp>/summary.json` + `failures/<test-name>.log`. pytest plugin producing `test-logs/unit-python/<timestamp>/summary.json` + `failures/<test-name>.log`. Each failure log includes assertion details, stack trace, and context. [FR-150, FR-151, FR-152]
 - [x] T044 [P] Create `.vscode/launch.json` with debug configurations: Extension Host debug, Vitest debug (current file), Python debugpy (attach to sidecar), pytest debug. [FR-160]
-- [ ] T045 [P] Add `clean:all` script to `package.json` that removes all dev state: `node_modules/`, `.venv/`, `dist/`, `out/`, `coverage/`, `test-logs/`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, downloaded models. [FR-161]
+- [x] T045 [P] Add `clean:all` script to `package.json` that removes all dev state: `node_modules/`, `.venv/`, `dist/`, `out/`, `coverage/`, `test-logs/`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, downloaded models. [FR-161]
 
 **Checkpoint**: `nix develop --command bash -c "npm install && npm run typecheck"` passes. Project structure in place.
 
