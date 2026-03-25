@@ -1,4 +1,4 @@
-"""Wake word detection via openWakeWord (TFLite)."""
+"""Wake word detection via openWakeWord (ONNX)."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ DEFAULT_THRESHOLD = 0.5
 
 
 def _import_openwakeword():
-    """Lazy import of openwakeword to avoid loading TFLite at module level."""
+    """Lazy import of openwakeword to avoid loading native deps at module level."""
     import openwakeword
     return openwakeword
 
@@ -37,7 +37,7 @@ class WakeWordDetector:
     """Detect a wake word in audio frames using openWakeWord.
 
     Args:
-        model_path: Path to a .tflite or .onnx wake word model file.
+        model_path: Path to an .onnx wake word model file.
             If None, uses openWakeWord's built-in model matching model_name.
         model_name: Name of the wake word model (e.g. "hey_claude").
             Used as the key in openWakeWord's prediction dict.
@@ -61,9 +61,9 @@ class WakeWordDetector:
         else:
             oww = _import_openwakeword()
             if model_path:
-                self._model = oww.Model(wakeword_models=[model_path])
+                self._model = oww.Model(wakeword_models=[model_path], inference_framework="onnx")
             else:
-                self._model = oww.Model()
+                self._model = oww.Model(inference_framework="onnx")
             logger.info("Wake word model loaded: name=%s, threshold=%.2f", model_name, threshold)
 
         # Accumulation buffer for resampling 480-sample frames → 1280-sample chunks

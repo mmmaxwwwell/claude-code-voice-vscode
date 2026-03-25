@@ -16,6 +16,12 @@ uv sync --dev
 npm run typecheck
 ```
 
+**IMPORTANT — NixOS / Python native extensions**: numpy, onnxruntime, and other pip-installed C extensions need `libstdc++` and `libz`. Prefix all `uv run` / Python commands with:
+```bash
+LD_LIBRARY_PATH=/nix/store/ab3753m6i7isgvzphlar0a8xb84gl96i-gcc-15.2.0-lib/lib:/nix/store/2kdz3m7ic8w226pcvkz1dlg169v91p6a-zlib-1.3.2/lib
+```
+Do NOT use `find /nix/store`, `nix eval`, or `ldconfig` to locate libraries — the paths above are correct and stable.
+
 ## Scripts
 
 ### Extension (npm)
@@ -98,7 +104,7 @@ npm run typecheck
 | `sidecar/server.py` | Async Unix socket server, NDJSON protocol |
 | `sidecar/audio.py` | Mic capture via sounddevice, 16kHz mono int16, 30ms frames |
 | `sidecar/vad.py` | Two-stage VAD (WebRTC → Silero ONNX), pre-speech ring buffer |
-| `sidecar/wakeword.py` | openWakeWord TFLite model loading and detection |
+| `sidecar/wakeword.py` | openWakeWord ONNX model loading and detection |
 | `sidecar/transcriber.py` | faster-whisper model loading and transcription |
 | `sidecar/command_words.py` | Submit/cancel word matching and stripping |
 | `sidecar/logger.py` | Structured JSON logger with correlation ID (contextvars) |

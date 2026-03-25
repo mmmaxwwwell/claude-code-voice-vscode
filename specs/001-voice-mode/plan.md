@@ -85,7 +85,7 @@ specs/001-voice-mode/
 │   │   └── audio/                # WAV files: wake word + speech, silence, noise, etc.
 │   └── reporters/                # custom Vitest + pytest structured test reporters
 ├── models/                       # pre-trained openWakeWord "hey claude" model (committed)
-│   └── hey_claude.tflite
+│   └── hey_claude.onnx
 ├── flake.nix                     # Nix devshell: Node.js, Python, system deps
 ├── .envrc                        # use flake
 ├── package.json                  # extension deps, scripts, VS Code manifest
@@ -245,7 +245,7 @@ Run `nix develop --command bash -c "npm install && npm run typecheck && npm run 
 - Unit tests with audio fixtures: silence → no events, speech → start/end events, pre-buffer preserves initial phonemes
 
 **T012** — Implement wake word detection (`sidecar/wakeword.py`) [FR-030, FR-031, FR-032, FR-033]
-- Load openWakeWord model (TFLite) from `models/` directory
+- Load openWakeWord model (ONNX) from `models/` directory
 - Process audio frames, emit wake word detection event
 - Configurable wake word model name
 - Strip wake word audio from the captured segment
@@ -491,7 +491,7 @@ Run `nix develop --command bash -c "npm install && npm run typecheck && npm run 
 **T035** — Create pre-trained "hey claude" openWakeWord model
 - Train via openWakeWord Colab notebook with synthetic speech
 - Validate detection accuracy on test recordings
-- Commit model to `models/hey_claude.tflite`
+- Commit model to `models/hey_claude.onnx`
 
 **T036** — Package extension for distribution
 - `vsce package` produces `.vsix`

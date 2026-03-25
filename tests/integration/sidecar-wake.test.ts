@@ -9,7 +9,7 @@
  * NOTE: Full end-to-end verification (wake word detection + transcription) requires:
  *   - TTS-generated audio fixtures (regenerate with `python tests/fixtures/generate-fixtures.py --tts`)
  *   - Native dependencies available (faster-whisper, openwakeword, webrtcvad, onnxruntime)
- *   - A wake word model (models/hey_claude.tflite or openWakeWord built-in model)
+ *   - A wake word model (models/hey_claude.onnx or openWakeWord built-in model)
  *
  * With synthetic audio fixtures, VAD should trigger but wake word detection and
  * transcription may not produce meaningful results.

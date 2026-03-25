@@ -71,7 +71,7 @@ The implementation is well-aligned with the spec, constitution, and research dec
 
 **Impact**: If the wake word model file is missing, the user gets a pipeline creation error instead of a clear `CONFIG_INVALID` error at config time. The `WAKE_MODEL_NOT_FOUND` error code from the protocol contract is never emitted.
 
-**Decision needed**: Should `config_validator.py` probe for the wake word model file? This is complicated because openWakeWord resolves model names to files via its own internal logic (built-in models vs custom .tflite files). A file existence check would need to replicate that logic.
+**Decision needed**: Should `config_validator.py` probe for the wake word model file? This is complicated because openWakeWord resolves model names to files via its own internal logic (built-in models vs custom .onnx files). A file existence check would need to replicate that logic.
 
 ### 10. `np.ndarray` type annotations with lazy numpy imports
 

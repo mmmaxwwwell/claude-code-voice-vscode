@@ -29,8 +29,9 @@ __pycache__/
 .venv/
 venv/
 
-# Models (downloaded at runtime)
+# Models (downloaded at runtime, except committed wake word model)
 *.onnx
+!models/hey_claude.onnx
 
 # Environment
 .env
