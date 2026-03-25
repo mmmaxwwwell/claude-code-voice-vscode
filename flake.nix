@@ -18,13 +18,16 @@
             pkgs.python311
             pkgs.uv
             pkgs.portaudio
+            pkgs.gitleaks
           ];
 
           shellHook = ''
+            git config --local core.hooksPath .githooks
             echo "claude-voice dev shell ready"
             echo "  node: $(node --version)"
             echo "  python: $(python3 --version)"
             echo "  uv: $(uv --version)"
+            echo "  gitleaks: $(gitleaks version)"
           '';
         };
       });

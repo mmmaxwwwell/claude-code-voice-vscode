@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Pre-commit hook: scan staged changes for secrets using gitleaks [FR-143]
+set -euo pipefail
+
+if ! command -v gitleaks &>/dev/null; then
+  echo "WARNING: gitleaks not found in PATH. Skipping secret scan."
+  echo "  Run 'nix develop' to get gitleaks, or install it manually."
+  exit 0
+fi
+
+echo "Running gitleaks pre-commit scan..."
+gitleaks protect --staged --verbose
