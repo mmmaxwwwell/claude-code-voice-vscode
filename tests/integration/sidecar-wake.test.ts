@@ -99,7 +99,7 @@ function connectWithRetry(
 /**
  * Read NDJSON messages from a socket until timeout or socket closes.
  */
-function collectMessages(
+function _collectMessages(
   sock: Socket,
   timeoutMs: number,
 ): Promise<Message[]> {

@@ -157,7 +157,7 @@ describe("SidecarManager", () => {
       await manager.start();
 
       // Crash 1
-      let proc2 = createMockProcess();
+      const proc2 = createMockProcess();
       vi.mocked(spawn).mockReturnValue(proc2);
       mockProc.emit("close", 1, null);
       await vi.advanceTimersByTimeAsync(1000);
@@ -188,13 +188,13 @@ describe("SidecarManager", () => {
       await manager.start();
 
       // Crash 1
-      let proc2 = createMockProcess();
+      const proc2 = createMockProcess();
       vi.mocked(spawn).mockReturnValue(proc2);
       mockProc.emit("close", 1, null);
       await vi.advanceTimersByTimeAsync(1000);
 
       // Crash 2
-      let proc3 = createMockProcess();
+      const proc3 = createMockProcess();
       vi.mocked(spawn).mockReturnValue(proc3);
       proc2.emit("close", 1, null);
       await vi.advanceTimersByTimeAsync(1000);
@@ -203,14 +203,14 @@ describe("SidecarManager", () => {
       await vi.advanceTimersByTimeAsync(60000);
 
       // Crash 3 — should NOT trip circuit breaker because window reset
-      let proc4 = createMockProcess();
+      const proc4 = createMockProcess();
       vi.mocked(spawn).mockReturnValue(proc4);
       proc3.emit("close", 1, null);
       await vi.advanceTimersByTimeAsync(1000);
       expect(spawn).toHaveBeenCalledTimes(4); // Still restarting
 
       // Crash 4 — still within new window
-      let proc5 = createMockProcess();
+      const proc5 = createMockProcess();
       vi.mocked(spawn).mockReturnValue(proc5);
       proc4.emit("close", 1, null);
       await vi.advanceTimersByTimeAsync(1000);

@@ -19,6 +19,14 @@
             pkgs.uv
             pkgs.portaudio
             pkgs.gitleaks
+            pkgs.ruff
+          ];
+
+          # numpy, onnxruntime, and other pip-installed C extensions need
+          # libstdc++ and libz at runtime. Expose them via LD_LIBRARY_PATH.
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+            pkgs.stdenv.cc.cc.lib
+            pkgs.zlib
           ];
 
           shellHook = ''

@@ -166,10 +166,8 @@ describe("commands", () => {
 
     it("should identify specific missing dependencies", async () => {
       // First calls succeed, one fails
-      let callCount = 0;
       mockExec.mockImplementation(
         (cmd: string, callback: (err: Error | null, stdout: string, stderr: string) => void) => {
-          callCount++;
           if (cmd.includes("openwakeword")) {
             callback(new Error("missing"), "", "No module named 'openwakeword'");
           } else {

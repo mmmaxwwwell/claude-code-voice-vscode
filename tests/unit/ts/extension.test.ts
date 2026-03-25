@@ -49,6 +49,7 @@ vi.mock("vscode", () => {
 // Mock child_process spawn
 vi.mock("node:child_process", () => ({
   spawn: vi.fn(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const EventEmitter = require("node:events").EventEmitter;
     const proc = new EventEmitter();
     proc.killed = false;

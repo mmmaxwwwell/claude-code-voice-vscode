@@ -16,9 +16,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:claude-voice.toggleListening",
-    "onCommand:claude-voice.downloadModel",
-    "onCommand:claude-voice.checkDependencies"
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -184,15 +182,19 @@
     "clean": "rm -rf dist/ out/ coverage/ *.vsix",
     "clean:all": "rm -rf node_modules/ .venv/ dist/ out/ coverage/ test-logs/ .pytest_cache/ .mypy_cache/ .ruff_cache/ *.vsix ~/.cache/claude-voice/models/",
     "check": "npm run lint && npm run typecheck && npm run test",
-    "package": "vsce package"
+    "package": "npx @vscode/vsce package",
+    "install-local": "npm run package && code --install-extension claude-voice-$(node -p \"require('./package.json').version\").vsix",
+    "uninstall-local": "code --uninstall-extension anthropics.claude-voice"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
     "@types/vscode": "^1.85.0",
     "@vitest/coverage-v8": "^3.2.4",
+    "@vscode/vsce": "^3.7.1",
     "esbuild": "^0.24.0",
     "eslint": "^10.1.0",
     "typescript": "^5.7.0",
+    "typescript-eslint": "^8.57.2",
     "vitest": "^3.0.0"
   }
 }
