@@ -5,21 +5,32 @@ flake.nix
 flake.lock
 tsconfig.json
 pyproject.toml
+uv.lock
+conftest.py
+vitest.config.mts
+CLAUDE.md
 
 # Directories not needed in packaged extension
+src/
 tests/
 sidecar/
 models/
 specs/
 scripts/
 logs/
-src/
 coverage/
-.vscode-test/
+test-logs/
 node_modules/
+.vscode-test/
 .direnv/
 .specify/
 .claude/
+.github/
+.githooks/
+.vscode/
+__pycache__/
+.pytest_cache/
+.venv/
 
 # Test fixtures
 tests/fixtures/
@@ -27,5 +38,8 @@ tests/fixtures/
 # Dev and build artifacts
 **/*.map
 .eslintrc*
+eslint.config*
 .prettierrc*
 *.tgz
+*.vsix
+.coverage

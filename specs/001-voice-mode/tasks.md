@@ -172,7 +172,7 @@
 
 - [ ] T037 [P] Create pre-trained "hey claude" openWakeWord model via Colab notebook with synthetic speech. Validate detection accuracy against test fixtures. Commit to `models/hey_claude.tflite`.
 - [ ] T038 [P] Polish error messages: review all error paths across sidecar and extension. Ensure every error surfaced to user has an actionable message (what went wrong + how to fix). Test: missing Python, missing each pip dep, no mic, corrupt model, Claude Code not installed.
-- [ ] T039 Package extension: `vsce package` → `.vsix`. Verify `.vscodeignore` excludes dev files. Test: install in clean VS Code, run "Check Dependencies".
+- [x] T039 Package extension: `vsce package` → `.vsix`. Verify `.vscodeignore` excludes dev files. Test: install in clean VS Code, run "Check Dependencies".
 - [ ] T040 Update `CLAUDE.md` with final development guide, architecture overview, test guide, troubleshooting.
 - [ ] REVIEW Code review: check all implementation against spec FRs, constitution principles, research.md decisions. Auto-fix issues found. Write `REVIEW-TODO.md` for anything requiring human judgment.
 
