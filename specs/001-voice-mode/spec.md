@@ -3,223 +3,259 @@
 **Feature Branch**: `001-voice-mode`
 **Created**: 2026-03-25
 **Status**: Draft
-**Input**: User description: "Always-listening voice input that detects when I'm talking to Claude, transcribes my speech, and sends it to the Claude Code VS Code extension."
+**Preset**: local
 
-## User Scenarios & Testing *(mandatory)*
+## Overview
 
-### User Story 1 - Push-to-Talk Voice Input (Priority: P1)
+Always-listening voice input for the Claude Code VS Code extension. A Python sidecar process captures microphone audio, detects speech via two-stage VAD, recognizes wake words, transcribes speech locally via faster-whisper, and sends transcriptions to the extension over a Unix domain socket. The extension bridges to Claude Code by simulating keystrokes into its input field.
 
-As a developer using Claude Code in VS Code, I want to hold a keybinding to speak a prompt and have it transcribed and sent to Claude, so I can interact with Claude hands-free without typing.
+All audio processing runs locally — no cloud STT services.
 
-I click the "Start Listening" button in the status bar. The status bar changes to "Listening." I press and hold my push-to-talk keybinding, speak my prompt ("refactor this function to use async/await"), and release. The status bar shows "Processing" while the speech is transcribed. The transcribed text appears in the Claude Code input field. Depending on my settings, it either auto-submits or waits for me to review and press Enter.
+## User Scenarios & Testing
 
-**Why this priority**: This is the minimal viable voice input path — it works without wake word detection, requires the fewest pipeline components (just VAD + STT), and gives the user full control over when the system listens.
+### User Story 1 — Wake Word Activation (Priority: P1)
 
-**Independent Test**: Can be tested by starting the extension, clicking the status bar to begin listening, pressing the push-to-talk key, speaking a phrase, and verifying the transcribed text appears in the Claude Code input field.
+The user says "hey claude, refactor this function to use async/await". The sidecar detects the wake word, captures speech until a submit command word ("send it", "go", "submit"), strips the wake word and command word, transcribes the speech, and delivers the transcript to the Claude Code input.
+
+**Why this priority**: This is the core interaction loop. Without it, nothing else matters.
+
+**Independent Test**: Can be tested end-to-end with a pre-recorded audio file containing "hey claude [utterance] send it" fed to the sidecar. Validates wake word detection → STT → transcript delivery → command word stripping.
 
 **Acceptance Scenarios**:
 
-1. **Given** the extension is installed and the sidecar is available, **When** the user clicks the status bar icon, **Then** the sidecar starts and the status bar changes to "Listening"
-2. **Given** the status bar shows "Listening", **When** the user holds the push-to-talk key and speaks, **Then** the status bar changes to "Processing" after the key is released
-3. **Given** the user has spoken and released the push-to-talk key, **When** transcription completes, **Then** the transcribed text is inserted into the Claude Code input field
-4. **Given** auto-submit is enabled, **When** transcription completes, **Then** the text is submitted to Claude automatically
-5. **Given** auto-submit is disabled, **When** transcription completes, **Then** the text is inserted but not submitted, allowing the user to review and edit
+1. **Given** the extension is active and listening, **When** the user says "hey claude, add error handling to this function, send it", **Then** the wake word and command word are stripped, "add error handling to this function" is transcribed and delivered to Claude Code's input, and (if auto-submit is enabled) the message is submitted.
+2. **Given** the extension is active and listening, **When** the user speaks without the wake word, **Then** the speech is ignored and no transcription is produced.
+3. **Given** the extension is active and listening, **When** the user says "hey claude, actually never mind", **Then** the pending transcription is cancelled and nothing is sent to Claude Code.
 
 ---
 
-### User Story 2 - Wake Word Activation (Priority: P2)
+### User Story 2 — Push-to-Talk (Priority: P1)
 
-As a developer, I want to say "hey claude" followed by my prompt, so I can interact with Claude without pressing any keys at all.
+The user holds a keybinding (`Ctrl+Shift+Space` default), speaks their command, and releases. No wake word needed — everything captured while the key is held is transcribed and delivered.
 
-While listening mode is active, I say "hey claude, explain this error message." The system detects the wake word, begins recording my speech, detects when I stop talking (via voice activity detection), transcribes the utterance, and sends it to Claude Code.
+**Why this priority**: Equal priority to wake word — some users prefer explicit control, and it's simpler (no wake word model needed). Essential fallback for noisy environments.
 
-**Why this priority**: This is the flagship experience — fully hands-free. It depends on the same STT pipeline as P1 but adds wake word detection and VAD-based utterance boundary detection, which are additional complexity.
-
-**Independent Test**: Can be tested by activating listening mode, saying "hey claude" followed by a phrase, and verifying the transcribed text (minus the wake word) appears in the Claude Code input.
+**Independent Test**: Simulate keydown → feed audio → keyup → verify transcript delivered.
 
 **Acceptance Scenarios**:
 
-1. **Given** listening mode is active with wake word mode enabled, **When** the user says the configured wake word, **Then** the status bar changes to "Processing" and the system begins recording the utterance
-2. **Given** the wake word was detected and the user is speaking, **When** the user stops speaking (silence detected by VAD), **Then** the system stops recording and begins transcription
-3. **Given** transcription is complete after wake word activation, **When** the text is ready, **Then** the wake word phrase is stripped and only the command text is sent to Claude Code
-4. **Given** ambient speech is occurring without the wake word, **When** people talk near the mic, **Then** the system remains in "Listening" state and does not trigger transcription
+1. **Given** push-to-talk mode is active, **When** the user holds the keybinding and speaks "explain this code", **Then** speech is captured from keydown to keyup, transcribed, and delivered to Claude Code's input.
+2. **Given** push-to-talk mode is active, **When** the user taps the keybinding without speaking, **Then** no transcription is produced and no action is taken.
+3. **Given** push-to-talk mode is active, **When** the user holds the key, says "cancel", and releases, **Then** the transcription is discarded post-transcription (command words are detected after key release, not in real-time during speech).
 
 ---
 
-### User Story 3 - Continuous Dictation Mode (Priority: P3)
+### User Story 3 — Continuous Dictation (Priority: P2)
 
-As a developer, I want a mode where everything I say is transcribed and sent to Claude, without needing a wake word or push-to-talk key for each utterance.
+The user activates continuous dictation mode (via command or setting). All detected speech is transcribed without requiring a wake word. Chunks are delimited by command words — submit words send the accumulated text, cancel words discard it.
 
-I activate continuous dictation mode. Everything I say is transcribed and sent to Claude Code. Silence gaps between utterances are used to segment individual messages. I deactivate the mode by clicking the status bar or using a keybinding.
+**Why this priority**: Power-user feature for extended dictation sessions. Requires wake word and push-to-talk to work first.
 
-**Why this priority**: This is useful for extended voice sessions but risks accidental input from ambient speech. It's a convenience mode built on top of the same pipeline.
-
-**Independent Test**: Can be tested by activating continuous dictation, speaking multiple phrases with pauses between them, and verifying each phrase is individually transcribed and sent.
+**Independent Test**: Feed continuous audio with multiple utterances separated by silence and command words. Verify each chunk is delivered or cancelled correctly.
 
 **Acceptance Scenarios**:
 
-1. **Given** continuous dictation mode is active, **When** the user speaks, **Then** each utterance (delimited by VAD silence detection) is independently transcribed and sent to Claude Code
-2. **Given** continuous dictation mode is active, **When** the user clicks the status bar or presses the stop keybinding, **Then** the mode deactivates and returns to Idle
-3. **Given** continuous dictation mode is active, **When** the user pauses for longer than the configurable silence threshold, **Then** the current utterance is finalized and transcribed as a complete message
+1. **Given** continuous dictation is active, **When** the user speaks "refactor the auth module... send it", **Then** "refactor the auth module" is transcribed and delivered.
+2. **Given** continuous dictation is active, **When** the user speaks "no wait... never mind", **Then** the accumulated text is discarded.
+3. **Given** continuous dictation is active, **When** the user is silent for an extended period, **Then** the system remains listening without producing empty transcriptions.
 
 ---
 
-### User Story 4 - Sidecar Lifecycle and Error Recovery (Priority: P1)
+### User Story 4 — Status Bar Control (Priority: P1)
 
-As a developer, I want the voice sidecar to start reliably when I activate listening and recover automatically if it crashes, so I don't have to manually manage processes.
+The user clicks a status bar button to start/stop listening. The status bar shows the current state: Idle, Listening, Processing, Error.
 
-When I click "Start Listening," the extension spawns the Python sidecar process. If the sidecar crashes or becomes unresponsive, the extension detects this, shows a notification ("Voice sidecar restarted"), and automatically restarts it. The status bar reflects the current state accurately.
+**Why this priority**: Primary UI control surface — users need to see what's happening and toggle listening.
 
-**Why this priority**: Without reliable sidecar management, none of the voice features work. This is foundational infrastructure.
-
-**Independent Test**: Can be tested by starting listening mode, killing the sidecar process externally, and verifying the extension detects the crash, shows a notification, and restarts the sidecar within a few seconds.
+**Independent Test**: Activate extension, verify status bar transitions through Idle → Listening → Processing → Idle on a voice command cycle.
 
 **Acceptance Scenarios**:
 
-1. **Given** the user clicks "Start Listening", **When** the sidecar is not running, **Then** the extension spawns the sidecar process and waits for its ready signal before changing status to "Listening"
-2. **Given** the sidecar is running, **When** the sidecar process exits unexpectedly, **Then** the extension shows a notification "Voice sidecar restarted" and spawns a new sidecar within 5 seconds
-3. **Given** the sidecar crashed, **When** auto-restart succeeds, **Then** the extension resumes the previous listening mode (wake word, push-to-talk, or continuous)
-4. **Given** the sidecar crashes repeatedly (3+ times in 60 seconds), **When** the restart limit is hit, **Then** the extension shows an error notification and sets the status bar to "Error" without further restart attempts
-5. **Given** the status bar shows "Error", **When** the user clicks it, **Then** the extension attempts a fresh sidecar start
+1. **Given** the extension is idle, **When** the user clicks the status bar button, **Then** the sidecar starts, mic capture begins, and status changes to Listening.
+2. **Given** the extension is listening, **When** the user clicks the status bar button, **Then** mic capture stops, sidecar is sent a `control:stop` message, and status changes to Idle.
+3. **Given** the sidecar crashes, **When** the crash is detected, **Then** status changes to Error, a notification is shown, and auto-restart is attempted (up to 3 times in 60 seconds).
 
 ---
 
-### User Story 5 - STT Model Selection and Download (Priority: P2)
+### User Story 5 — Model Management (Priority: P2)
 
-As a developer, I want to choose which speech-to-text model to use and have it downloaded automatically, so I can balance accuracy vs. speed for my hardware.
+The user selects a whisper model size in settings (tiny, base, small, medium). On first use, the model is automatically downloaded to `~/.cache/claude-voice/models/`. A manual download command is also available.
 
-In VS Code settings, I select a faster-whisper model size (tiny, base, small, medium, large). If the model isn't already downloaded, the extension triggers a download with a progress notification. The model is cached locally for future use.
+**Why this priority**: Required for STT to function, but the download/management UX is secondary to the core voice pipeline.
 
-**Why this priority**: Model selection directly affects transcription quality and latency. Users on weaker hardware need smaller models; users with GPUs want larger ones.
-
-**Independent Test**: Can be tested by selecting a model in settings, verifying the download starts (or is skipped if cached), and verifying the sidecar uses the selected model for transcription.
+**Independent Test**: Set model size to "tiny", trigger first activation, verify download progress notification appears, model file is saved to correct path, and subsequent activations skip download.
 
 **Acceptance Scenarios**:
 
-1. **Given** the user selects a model size in settings, **When** the model is not cached locally, **Then** the extension shows a download progress notification and the sidecar downloads the model
-2. **Given** a model download is in progress, **When** the download completes, **Then** the notification updates to "Model ready" and the sidecar begins using the new model
-3. **Given** the user selects a model that is already cached, **When** the sidecar starts, **Then** it loads the cached model without downloading
-4. **Given** a model download fails (network error, disk full), **When** the failure occurs, **Then** the extension shows an error notification with the reason and falls back to the previously working model (if any)
+1. **Given** no model is downloaded, **When** the user activates listening for the first time, **Then** a VS Code progress notification shows download progress, the model is saved to `~/.cache/claude-voice/models/`, and listening begins after download completes.
+2. **Given** a model is already downloaded, **When** the user activates listening, **Then** the sidecar starts immediately without downloading.
+3. **Given** the user runs the "Download Model" command, **When** a model size is selected, **Then** the model is downloaded (or confirmed already present) with progress shown.
 
 ---
 
 ### Edge Cases & Failure Modes
 
-**Sidecar lifecycle**:
-- What happens when the Python runtime is not found? → Extension shows an error notification with instructions to install Python and configure the path in settings. Status bar shows "Error."
-- What happens when the sidecar starts but fails to initialize (e.g., missing pip dependencies)? → Sidecar sends an error message over the IPC protocol with details. Extension shows the error to the user.
-- What happens when the sidecar becomes unresponsive (no crash, just hangs)? → Extension uses a heartbeat mechanism. If no heartbeat response within 10 seconds, the sidecar is killed and restarted.
+**Sidecar lifecycle:**
+- **Sidecar crash mid-transcription**: Pending audio is lost. Extension detects socket disconnect, shows Error status, auto-restarts sidecar. No partial transcript is delivered.
+- **Sidecar fails to start** (Python not found, missing dependencies): Extension shows error notification with actionable message ("Python sidecar failed to start: missing faster-whisper. Run `pip install faster-whisper`"). Status stays Error.
+- **3+ crashes in 60 seconds**: Auto-restart stops. Error notification tells user to check logs. Manual restart via status bar click or command.
 
-**Audio pipeline**:
-- What happens when no microphone is available? → Sidecar reports "no audio device" over IPC. Extension shows notification and sets status to "Error."
-- What happens when the microphone is grabbed by another application? → Sidecar detects the audio stream failure, reports it over IPC. Extension shows notification.
-- What happens when the user speaks but the wake word detector gives a false positive? → The utterance is transcribed and sent. Users can undo via Claude Code's normal interaction (this is an acceptable trade-off for local wake word detection).
-- What happens when the wake word detector misses a real wake word? → The utterance is ignored. The user can repeat or switch to push-to-talk. No system action needed.
+**Audio & transcription:**
+- **No microphone available**: Sidecar reports error on startup. Extension shows notification: "No microphone found". Status stays Error.
+- **Mic permission denied**: Same as above with "Microphone permission denied" message.
+- **Empty transcription** (VAD triggered but whisper produces empty/whitespace result): Silently discarded, no action taken.
+- **Very long utterance** (user speaks for minutes): Sidecar buffers and transcribes in chunks to avoid memory exhaustion. Max single transcription duration configurable (default 60s).
+- **Background noise triggers VAD but not wake word**: No action — wake word gate prevents spurious transcriptions.
+- **Wake word false positive** (TV says "hey claude"): Transcription of non-command speech is delivered. Acceptable in local preset — user can cancel or use push-to-talk in noisy environments.
 
-**Transcription delivery**:
-- What happens when Claude Code's input field is not visible/focused? → The extension runs `claude-vscode.focus` command before inserting text. If the command fails, the text is copied to clipboard and a notification says "Transcription copied to clipboard — Claude Code input not available."
-- What happens when two transcriptions complete in quick succession? → They are queued and delivered sequentially, each waiting for the previous submission to complete before inserting the next.
+**Claude Code integration:**
+- **Claude Code sidebar not open**: Extension calls `claude-vscode.sidebar.open` before typing.
+- **Claude Code input not focused**: Extension calls `claude-vscode.focus` before typing.
+- **Claude Code extension not installed**: Extension checks on activation. Shows notification: "Claude Code extension required." Deactivates voice features.
+- **Rapid sequential transcriptions**: Queue transcriptions and deliver in order. Don't overlap typing simulations.
+- **Transcription contains special characters**: Text is delivered as-is. No escaping needed since we simulate typing character by character.
 
-**Model management**:
-- What happens when disk space is insufficient for model download? → Download fails, extension shows error with required space. Falls back to previously cached model.
-- What happens when the user changes the model while a transcription is in progress? → The current transcription completes with the old model. The new model is loaded for the next transcription.
+**Model management:**
+- **Download interrupted** (network failure, user cancels): Partial file is deleted. Next activation retries download.
+- **Disk full during download**: Error notification with clear message. Partial file cleaned up.
+- **Model file corrupted**: Sidecar fails to load model, reports error. Extension shows notification suggesting re-download. User runs "Download Model" command to fix.
+- **Model size changed in settings while listening**: Current session continues with old model. New model used on next sidecar restart.
 
-**Concurrent access**:
-- What happens when multiple VS Code windows are open? → Only one instance should own the microphone at a time. The first window to activate listening claims the mic. Other windows attempting to activate get a notification "Mic in use by another window."
+**Resource exhaustion:**
+- **High CPU from continuous STT**: Two-stage VAD minimizes unnecessary Whisper invocations. Whisper only runs on confirmed speech segments.
+- **Memory growth in long sessions**: Sidecar should not accumulate audio buffers beyond the current utterance. Processed audio is discarded immediately.
 
-## Requirements *(mandatory)*
+---
+
+## Requirements
 
 ### Functional Requirements
 
-**Sidecar Management**:
-- **FR-001**: Extension MUST spawn a Python sidecar process when the user activates listening mode [Story 4]
-- **FR-002**: Extension MUST communicate with the sidecar via newline-delimited JSON over stdin/stdout [Story 4]
-- **FR-003**: Extension MUST detect sidecar crashes (process exit) and auto-restart within 5 seconds [Story 4]
-- **FR-004**: Extension MUST implement a heartbeat mechanism to detect unresponsive sidecars (10-second timeout) [Story 4]
-- **FR-005**: Extension MUST stop auto-restart attempts after 3 crashes within 60 seconds and show an error [Story 4]
-- **FR-006**: Extension MUST show a notification on each auto-restart with the message "Voice sidecar restarted" [Story 4]
+#### Extension Core
+- **FR-001**: Extension MUST provide a status bar item showing current state: Idle, Listening, Processing, Error
+- **FR-002**: Extension MUST start the Python sidecar process when the user clicks the status bar button to begin listening
+- **FR-003**: Extension MUST stop the sidecar when the user clicks the status bar button to stop listening
+- **FR-004**: Extension MUST auto-restart the sidecar on crash, up to 3 times within 60 seconds
+- **FR-005**: Extension MUST show a VS Code notification on sidecar crash with error details
+- **FR-006**: Extension MUST verify Claude Code extension is installed on activation and show a notification if missing
 
-**Voice Input Modes**:
-- **FR-007**: Extension MUST support push-to-talk mode where audio is captured only while a configurable keybinding is held [Story 1]
-- **FR-008**: Extension MUST support wake word mode where a configurable wake phrase (default: "hey claude") triggers recording [Story 2]
-- **FR-009**: Extension MUST support continuous dictation mode where all speech is transcribed until the user deactivates [Story 3]
-- **FR-010**: User MUST be able to select the active voice input mode via VS Code settings [Stories 1, 2, 3]
-- **FR-011**: Wake word mode MUST strip the wake word phrase from the transcribed text before delivery [Story 2]
-- **FR-012**: Continuous dictation mode MUST segment utterances using VAD silence detection with a configurable silence threshold [Story 3]
+#### Communication Protocol
+- **FR-010**: Extension and sidecar MUST communicate via a Unix domain socket with newline-delimited JSON messages
+- **FR-011**: Protocol MUST support message types: `status`, `transcript`, `config`, `control`, `error`
+- **FR-012**: Extension MUST send `config` messages to sidecar on startup with current settings (mode, model, wake word, command words)
+- **FR-013**: Extension MUST send `control` messages for start/stop listening and push-to-talk start/stop
+- **FR-014**: Sidecar MUST send `status` messages for pipeline state changes: `ready`, `listening`, `speech_start`, `speech_end`, `wake_word_detected`, `processing`
+- **FR-015**: Sidecar MUST send `transcript` messages with final transcription text
+- **FR-016**: Sidecar MUST send `error` messages with error code and human-readable description
 
-**Audio Pipeline (Sidecar)**:
-- **FR-013**: Sidecar MUST capture audio from the system microphone using the OS audio API [Stories 1, 2, 3]
-- **FR-014**: Sidecar MUST perform voice activity detection to identify speech start and end [Stories 2, 3]
-- **FR-015**: Sidecar MUST perform wake word detection when in wake word mode [Story 2]
-- **FR-016**: Sidecar MUST transcribe speech to text using a local STT model (no cloud services) [Stories 1, 2, 3]
-- **FR-017**: Sidecar MUST report audio device errors (no mic, mic grabbed) to the extension via IPC [Story 4]
+#### Voice Activity Detection
+- **FR-020**: Sidecar MUST implement two-stage VAD: WebRTC VAD for fast rejection, Silero VAD (ONNX) for neural confirmation
+- **FR-021**: Sidecar MUST maintain a pre-speech audio buffer (~300ms) to avoid clipping initial phonemes
+- **FR-022**: Sidecar MUST capture audio at 16kHz mono
 
-**Transcription Delivery**:
-- **FR-018**: Extension MUST focus the Claude Code input field (via `claude-vscode.focus` command) before inserting transcribed text [Stories 1, 2, 3]
-- **FR-019**: Extension MUST insert transcribed text into the Claude Code input field via simulated keystrokes [Stories 1, 2, 3]
-- **FR-020**: Extension MUST support configurable auto-submit behavior (auto-submit on, off) [Stories 1, 2, 3]
-- **FR-021**: Extension MUST queue multiple transcriptions and deliver them sequentially [Stories 2, 3]
-- **FR-022**: Extension MUST fall back to clipboard copy with notification if the Claude Code input is unavailable [Stories 1, 2, 3]
+#### Wake Word Detection
+- **FR-030**: Sidecar MUST support wake word detection via openWakeWord
+- **FR-031**: Extension MUST ship with a pre-trained "hey claude" openWakeWord model
+- **FR-032**: Wake word MUST be configurable in extension settings
+- **FR-033**: Wake word MUST be stripped from the final transcript
 
-**Model Management**:
-- **FR-023**: Extension MUST allow the user to select a STT model size via VS Code settings (tiny, base, small, medium, large) [Story 5]
-- **FR-024**: Extension MUST trigger automatic model download when a selected model is not cached locally [Story 5]
-- **FR-025**: Extension MUST show download progress via VS Code notification [Story 5]
-- **FR-026**: Extension MUST cache downloaded models locally and reuse them across sessions [Story 5]
-- **FR-027**: Extension MUST fall back to the previously cached model if a download fails [Story 5]
+#### Speech-to-Text
+- **FR-040**: Sidecar MUST transcribe speech locally using faster-whisper
+- **FR-041**: User MUST be able to select whisper model size in settings: tiny, base, small, medium
+- **FR-042**: Extension MUST auto-download the selected model on first use to `~/.cache/claude-voice/models/`
+- **FR-043**: Extension MUST show download progress via VS Code progress notification
+- **FR-044**: Extension MUST provide a "Download Model" command for manual pre-download
 
-**Status Bar**:
-- **FR-028**: Extension MUST display a status bar item showing the current state: Idle, Listening, Processing, Error [Stories 1, 2, 3, 4]
-- **FR-029**: Status bar item MUST be clickable to toggle between Idle and Listening states [Story 4]
-- **FR-030**: Status bar item in Error state MUST be clickable to retry sidecar startup [Story 4]
+#### Command Words
+- **FR-050**: Sidecar MUST support configurable submit command words (defaults: "send it", "go", "submit")
+- **FR-051**: Sidecar MUST support configurable cancel command words (defaults: "never mind", "cancel")
+- **FR-052**: Command words MUST be stripped from the final transcript
+- **FR-053**: Submit command words MUST trigger transcript delivery to the extension
+- **FR-054**: Cancel command words MUST discard the accumulated transcription
 
-**Multi-Window**:
-- **FR-031**: Only one VS Code window MUST own the microphone at a time; other windows attempting to activate listening MUST receive a notification [Edge Cases]
+#### Input Modes
+- **FR-060**: Extension MUST support three input modes: wake word, push-to-talk, continuous dictation
+- **FR-061**: Push-to-talk MUST use a configurable keybinding (default: `Ctrl+Shift+Space`), hold-to-talk (release ends recording)
+- **FR-062**: In wake word mode, speech without the wake word MUST be ignored
+- **FR-063**: In continuous dictation mode, all detected speech MUST be transcribed and accumulated until a command word. Each VAD speech segment appends to the accumulation buffer. If no command word is spoken, the buffer accumulates indefinitely (bounded only by `maxUtteranceDuration` per individual segment).
+
+#### Claude Code Integration
+- **FR-070**: Extension MUST deliver transcriptions to Claude Code by simulating typing into the focused input
+- **FR-071**: Extension MUST open the Claude Code sidebar (`claude-vscode.sidebar.open`) if not visible before delivering text
+- **FR-072**: Extension MUST focus the Claude Code input (`claude-vscode.focus`) before typing
+- **FR-073**: Extension MUST support two delivery modes: auto-submit (simulate Enter after typing) and paste-and-review (type text, leave cursor in input)
+- **FR-074**: Delivery mode MUST be configurable in extension settings
+- **FR-075**: Transcriptions MUST be queued and delivered sequentially — no overlapping typing simulations
+
+#### Model & Dependency Management
+- **FR-090**: Extension MUST store downloaded models in `~/.cache/claude-voice/models/`
+- **FR-091**: Partial/interrupted downloads MUST be cleaned up (no partial files left on disk)
+- **FR-092**: Extension MUST provide a "Check Dependencies" command that verifies Python, faster-whisper, silero-vad, openwakeword are available
 
 ### Key Entities
 
-- **Sidecar Process**: The Python process that handles audio capture, VAD, wake word detection, and STT. Lifecycle states: NotStarted → Starting → Ready → Error → Restarting
-- **Voice Session**: An active listening session from activation to deactivation. Tracks the current input mode and queued transcriptions.
-- **Transcription**: A single speech-to-text result. Contains the recognized text and metadata (duration, confidence if available).
-- **IPC Message**: A JSON message exchanged between extension and sidecar. Types include: ready, heartbeat, heartbeat-ack, audio-config, start-listening, stop-listening, vad-event, wake-word-detected, transcription-result, error, download-progress, model-loaded.
+- **Sidecar Process**: Long-running Python process managing audio capture, VAD, wake word, and STT
+- **Voice Session**: Period between user activating and deactivating listening — encompasses multiple utterances
+- **Utterance**: Single speech segment from speech_start to command word, bounded by VAD
+- **Transcript**: Final text output from an utterance, with wake word and command words stripped
+- **Command Word**: Configurable trigger words for submit ("send it") or cancel ("never mind") actions
 
-## Testing
+### Extension Settings
 
-### Unit Tests
-- IPC message serialization/deserialization (both TypeScript and Python sides)
-- Status bar state machine transitions
-- Transcription queue ordering and delivery logic
-- Crash counter and restart throttling logic
-- Configuration validation (model size, wake word, silence threshold)
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `claude-voice.inputMode` | enum | `wakeWord` | Active input mode: `wakeWord`, `pushToTalk`, `continuousDictation` |
+| `claude-voice.wakeWord` | string | `hey_claude` | openWakeWord model name |
+| `claude-voice.submitWords` | string[] | `["send it", "go", "submit"]` | Words that trigger transcript submission |
+| `claude-voice.cancelWords` | string[] | `["never mind", "cancel"]` | Words that discard current transcript |
+| `claude-voice.deliveryMode` | enum | `autoSubmit` | `autoSubmit` or `pasteAndReview` |
+| `claude-voice.whisperModel` | enum | `base` | Model size: `tiny`, `base`, `small`, `medium` |
+| `claude-voice.pushToTalkKey` | string | `ctrl+shift+space` | Keybinding for push-to-talk |
+| `claude-voice.silenceTimeout` | number | `1500` | Milliseconds of silence before ending an utterance (applies to VAD speech-end detection across all modes) |
+| `claude-voice.maxUtteranceDuration` | number | `60000` | Maximum single utterance duration in ms |
+| `claude-voice.micDevice` | string | `""` | Microphone device name (empty = system default) |
 
-### Integration Tests
-- Extension ↔ sidecar IPC: spawn a real sidecar process with a stub audio source, send messages, verify responses
-- Sidecar crash detection and auto-restart: spawn sidecar, kill it, verify restart
-- Heartbeat timeout: spawn sidecar that stops responding, verify timeout detection
-- Model download: verify the sidecar correctly downloads and loads a model (use the tiny model for test speed)
-- Transcription delivery: verify text insertion into a mock VS Code input via command execution
+---
 
-### Stub Process
-- A test stub sidecar (`tests/fixtures/stub-sidecar.py`) that implements the IPC protocol without real audio/ML dependencies. Accepts the same startup flags, responds to heartbeats, and sends fake transcription results on command.
+## Infrastructure Decisions (local preset)
 
-## Success Criteria *(mandatory)*
+**Logging**: Python `logging` module at INFO level, stderr output. Extension side uses VS Code `OutputChannel` named "Claude Voice". No correlation IDs.
 
-### Measurable Outcomes
+**Error handling**: Simple hierarchy:
+```
+VoiceError (base)
+├── SidecarError        — sidecar process failures (crash, start failure)
+├── AudioError          — microphone/audio capture issues
+├── TranscriptionError  — STT model failures
+├── DependencyError     — missing Python packages or tools
+└── IntegrationError    — Claude Code extension communication failures
+```
+Extension-side errors surface as VS Code notifications. Sidecar-side errors are sent via `error` socket messages.
 
-- **SC-001**: User can speak a prompt and see the transcribed text in the Claude Code input within 5 seconds of finishing speaking (using the base model) [FR-016, FR-019]
-- **SC-002**: Wake word detection triggers on the configured phrase at least 90% of the time in a quiet environment [FR-015]
-- **SC-003**: Wake word false positive rate is below 5% during 10 minutes of ambient office conversation [FR-015]
-- **SC-004**: Sidecar auto-restarts after a crash within 5 seconds, and the user can resume voice input without manually restarting [FR-003, FR-006]
-- **SC-005**: Status bar accurately reflects the system state at all times (no stale states after transitions) [FR-028]
-- **SC-006**: All three voice input modes (push-to-talk, wake word, continuous dictation) work end-to-end [FR-007, FR-008, FR-009]
-- **SC-007**: Model download completes and the model is usable without manual file management [FR-024, FR-026]
+**Configuration**: VS Code settings for extension config. Sidecar receives config via socket `config` message on startup — no separate config file.
+
+**CI/CD**: None initially.
+
+**Branching**: Direct-to-main.
+
+---
+
+## Success Criteria
+
+- **SC-001**: User can activate listening via status bar, say "hey claude [command] send it", and see the transcribed command appear in Claude Code's input — validates FR-001, FR-002, FR-010, FR-020, FR-030, FR-033, FR-040, FR-050, FR-052, FR-070, FR-071, FR-072
+- **SC-002**: Push-to-talk works end-to-end: hold key, speak, release, transcript delivered — validates FR-060, FR-061, FR-070
+- **SC-003**: Cancel command words ("never mind") discard pending transcription — validates FR-051, FR-054
+- **SC-004**: Sidecar auto-restarts on crash with notification, stops after 3 crashes in 60s — validates FR-004, FR-005
+- **SC-005**: Model auto-downloads on first use with progress indicator — validates FR-042, FR-043
+- **SC-006**: Status bar correctly reflects Idle/Listening/Processing/Error states — validates FR-001
+- **SC-007**: Two-stage VAD prevents whisper from running on silence/noise — validates FR-020
+- **SC-008**: Extension degrades gracefully when Claude Code extension is not installed — validates FR-006
 
 ## Assumptions
 
-- User has Python 3.11+ installed and accessible from the VS Code terminal environment
-- User has a working microphone connected and accessible to the OS audio subsystem
-- User has the Claude Code VS Code extension installed and functional
-- Linux is the primary platform; macOS support is a stretch goal, not a launch requirement
-- The faster-whisper models are downloaded from Hugging Face (default model hub)
-- The sidecar's pip dependencies (faster-whisper, silero-vad, openwakeword, sounddevice/pyaudio) are installed in a virtualenv managed by the extension or pre-installed by the user
-- Simulated keystrokes into the Claude Code input field work via VS Code's `type` command or similar mechanism — if Claude Code changes its input handling, this integration may break
+- User has Python 3.11+ available on PATH (required for sidecar dependencies)
+- User has a working microphone accessible to the OS
+- User has the Claude Code VS Code extension installed (soft requirement — degrades gracefully if missing)
+- Linux is the primary platform; macOS support is a stretch goal
+- The Claude Code extension does not expose a public API — integration is via simulated typing (fragile but only available option)
+- `claude-vscode.sidebar.open`, `claude-vscode.focus`, `claude-vscode.blur`, `claude-vscode.newConversation` commands remain available and stable

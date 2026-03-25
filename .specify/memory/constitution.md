@@ -1,53 +1,30 @@
-<!-- Sync Impact Report
-  Version change: 0.0.0 → 1.0.0 (initial ratification)
-  Added principles: I–V (all new)
-  Added sections: Technical Constraints, Development Workflow
-  Templates requiring updates: ✅ None (initial constitution, templates are generic)
-  Follow-up TODOs: None
--->
-
 # Claude Voice Constitution
 
 ## Core Principles
 
-### I. Sidecar Architecture
+### I. Local-First Privacy
+All audio processing — VAD, wake word detection, speech-to-text, TTS — runs locally. No audio or transcription data leaves the machine. No cloud services, no telemetry, no network calls for core functionality. Model downloads are the sole exception.
 
-The extension MUST be a thin TypeScript orchestrator that delegates all audio and ML work to a Python sidecar process. The extension handles VS Code lifecycle, UI (status bar), settings, and IPC. The sidecar handles mic capture, VAD, wake word detection, and speech-to-text. Communication between extension and sidecar MUST use a well-defined JSON protocol over stdin/stdout. Neither side may assume implementation details of the other beyond the protocol contract.
+### II. FOSS Stack
+Every runtime dependency must be fully open-source with a permissive license (MIT, Apache 2.0, BSD). No commercial SDKs with free tiers, no proprietary models, no vendor lock-in. This is non-negotiable and drives all technology choices.
 
-### II. Local-Only Processing
+### III. Sidecar Architecture
+Audio processing lives in a Python sidecar process, cleanly separated from the TypeScript extension. Communication is via Unix domain socket with a well-defined JSON protocol. The extension is a thin orchestrator — it manages the sidecar lifecycle and bridges transcripts to Claude Code. The sidecar owns the audio pipeline.
 
-All audio processing — voice activity detection, wake word detection, and speech-to-text — MUST run locally. No audio data leaves the machine. No cloud STT services. This is a privacy constraint, not a cost optimization. Dependencies (silero-vad, openwakeword/porcupine, faster-whisper) are chosen specifically because they run locally.
+### IV. Test-First
+TDD for core logic. Integration tests exercise the real sidecar process with real audio (from fixtures), real socket communication, and real transcription. Stub processes for external tools follow the stub-process pattern — real child processes with real pipes, not mocks.
 
-### III. Minimal Surface Area
+### V. Minimal Surface
+Status bar + VS Code settings. No custom panels, webviews, or floating widgets. No audio cues. The extension should be invisible when idle and obvious when active. Complexity lives in the sidecar, not the UI.
 
-The extension adds voice as an input method to Claude Code — nothing more. No custom webviews, no chat UI, no attempt to replicate or replace Claude Code functionality. The only UI elements are a status bar indicator and VS Code settings. Integration with Claude Code is via its existing commands and simulated keystrokes into its input field.
+### VI. Graceful Degradation
+Missing dependencies produce clear, actionable error messages — not stack traces. The extension checks for prerequisites on activation and guides the user to fix issues. Auto-restart on crash with a circuit breaker (3 in 60s). Partial functionality is better than total failure — if TTS is missing, voice input still works.
 
-### IV. Test-First for Protocol and Pipeline
-
-TDD is mandatory for the IPC protocol (JSON message serialization/deserialization, message routing) and the audio pipeline stages (VAD state machine, wake word → STT handoff, transcription delivery). Tests for the extension use VS Code's test infrastructure. Tests for the sidecar use pytest. Integration tests verify the extension ↔ sidecar protocol by spawning a real sidecar process with a stub audio source.
-
-### V. Simplicity Over Configurability
-
-Start with the simplest working pipeline: one wake word ("hey claude"), one STT model (faster-whisper base), one mic (system default). Add configurability only when the simple version works end-to-end. Every setting added must justify its existence — if a reasonable default covers 90% of users, hardcode it and move on.
-
-## Technical Constraints
-
-- **Extension**: TypeScript, VS Code Extension API, no native Node modules (audio goes through sidecar)
-- **Sidecar**: Python 3.11+, minimal pip dependencies (silero-vad, faster-whisper, openwakeword)
-- **IPC**: JSON-over-stdin/stdout between extension and sidecar — one JSON object per line (newline-delimited JSON)
-- **Primary platform**: Linux (X11/Wayland). macOS support is a stretch goal, not a launch requirement.
-- **No native audio in the extension**: The VS Code extension process MUST NOT capture audio directly. All audio capture happens in the sidecar via PyAudio or sounddevice.
-
-## Development Workflow
-
-- Direct-to-main development — single developer, no feature branches or PRs required
-- Nix flake for reproducible dev environment (Python + Node.js + system audio libs)
-- `npm run test` for extension tests, `pytest` for sidecar tests
-- Lint with ESLint (extension) and ruff (sidecar)
-- The sidecar is developed and tested independently of the extension — it must work as a standalone CLI that reads audio and prints transcriptions
+### VII. Simplicity (YAGNI)
+No plugin system, no remote connections, no multi-user support, no custom UI framework. Build the simplest thing that works for a single developer on Linux. macOS is a stretch goal, not a design constraint.
 
 ## Governance
 
-This constitution defines the architectural boundaries for claude-voice. All implementation decisions must comply with these principles. Amendments require updating this document with rationale and incrementing the version.
+This constitution defines the architectural boundaries for claude-voice. All implementation decisions should be evaluated against these principles. When in conflict, privacy (I) and FOSS (II) take precedence over all others.
 
 **Version**: 1.0.0 | **Ratified**: 2026-03-25 | **Last Amended**: 2026-03-25
