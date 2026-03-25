@@ -70,6 +70,11 @@ export class SidecarManager extends EventEmitter<SidecarManagerEvents> {
       { stdio: ["ignore", "pipe", "pipe"] }
     );
 
+    this._process.on("error", (err) => {
+      this._process = null;
+      this.emit("error", err);
+    });
+
     this._process.on("close", (code, signal) => {
       this._process = null;
       this.emit("stopped", code);
