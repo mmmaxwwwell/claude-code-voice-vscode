@@ -125,6 +125,23 @@
           "type": "string",
           "default": "",
           "description": "Microphone device name (empty = system default)"
+        },
+        "claude-voice.logLevel": {
+          "type": "string",
+          "default": "info",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "enumDescriptions": [
+            "Show all log messages including debug",
+            "Show info, warn, and error messages",
+            "Show warn and error messages only",
+            "Show error messages only"
+          ],
+          "description": "Minimum log level for the Claude Voice output channel"
         }
       }
     }
@@ -143,6 +160,7 @@
     "check": "npm run lint && npm run typecheck && npm run test"
   },
   "devDependencies": {
+    "@types/node": "^25.5.0",
     "@types/vscode": "^1.85.0",
     "esbuild": "^0.24.0",
     "typescript": "^5.7.0",
