@@ -148,7 +148,7 @@
 **Goal**: Auto-download whisper models on first use, manual download command.
 
 - [x] T032 Implement `src/model-manager.ts`: check model existence at `~/.cache/claude-voice/models/<model>/` [FR-090]. Download from Hugging Face (faster-whisper model repos) with progress via `vscode.window.withProgress`. Clean up partial downloads on failure/cancel. "Download Model" command: quick-pick model size, trigger download. Unit tests: mock fetch, verify progress, partial cleanup. `tests/unit/ts/model-manager.test.ts`. [FR-042, FR-043, FR-044, FR-090, FR-091, Story 5]
-- [ ] T033 Integration test: model download. Mock HTTP server serving fake model file. Trigger download, verify progress, file at correct path. Interrupt download, verify partial cleaned up. `tests/integration/model-download.test.ts`. [SC-005]
+- [x] T033 Integration test: model download. Mock HTTP server serving fake model file. Trigger download, verify progress, file at correct path. Interrupt download, verify partial cleaned up. `tests/integration/model-download.test.ts`. [SC-005]
 
 **Checkpoint**: Model auto-download works. Manual download command works.
 
